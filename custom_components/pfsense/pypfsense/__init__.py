@@ -1,8 +1,8 @@
 import json
-import xmlrpc.client
-import ssl
 import socket
-from urllib.parse import urlparse, quote_plus
+import ssl
+from urllib.parse import quote_plus, urlparse
+import xmlrpc.client
 
 # value to set as the socket timeout
 DEFAULT_TIMEOUT = 5

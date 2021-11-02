@@ -14,8 +14,9 @@ from homeassistant.const import (
     CONF_USERNAME,
     CONF_VERIFY_SSL,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -25,6 +26,8 @@ from homeassistant.helpers.update_coordinator import (
 from .const import (
     CONF_DEVICE_TRACKER_ENABLED,
     CONF_DEVICE_TRACKER_SCAN_INTERVAL,
+    CONF_DEVICES,
+    CONF_PREVIOUS_DEVICES,
     CONF_TLS_INSECURE,
     COORDINATOR,
     DEFAULT_DEVICE_TRACKER_ENABLED,
@@ -37,6 +40,7 @@ from .const import (
     LOADED_PLATFORMS,
     PFSENSE_CLIENT,
     PLATFORMS,
+    SHOULD_RELOAD,
     UNDO_UPDATE_LISTENER,
 )
 from .pypfsense import Client as pfSenseClient
@@ -60,7 +64,11 @@ def dict_get(data: dict, path: str, default=None):
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry):
     """Handle options update."""
-    await hass.config_entries.async_reload(entry.entry_id)
+    entry_data = hass.data[DOMAIN][entry.entry_id]
+    if entry_data.get("prev_devices_update", False):
+        entry_data["prev_devices_update"] = False
+        return
+    hass.async_create_task(hass.config_entries.async_reload(entry.entry_id))
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
@@ -136,6 +144,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         PFSENSE_CLIENT: client,
         UNDO_UPDATE_LISTENER: [undo_listener],
         LOADED_PLATFORMS: platforms,
+        SHOULD_RELOAD: False,
     }
 
     # Fetch initial data so we have data when entities subscribe
@@ -145,6 +154,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         await device_tracker_coordinator.async_config_entry_first_refresh()
 
     hass.config_entries.async_setup_platforms(entry, platforms)
+    macs_to_remove = None
+    if entry.options.get(CONF_PREVIOUS_DEVICES):
+        macs_to_remove = list(
+            set(entry.options.get(CONF_PREVIOUS_DEVICES, []))
+            - set(entry.options.get(CONF_DEVICES, []))
+        )
+    elif entry.options.get(CONF_DEVICES):
+        arp_table = dict_get(device_tracker_coordinator.data, "arp_table")
+        if arp_table:
+            macs_to_remove = list(
+                {entry["mac-address"] for entry in arp_table}
+                - set(entry.options.get(CONF_DEVICES))
+            )
+    if macs_to_remove:
+        hass.bus.async_fire(
+            f"{DOMAIN}_{entry.entry_id}_remove_devices", {"macs": macs_to_remove}
+        )
+        new_options = dict(entry.options)
+        new_options[CONF_PREVIOUS_DEVICES] = entry.options.get(CONF_DEVICES, []).copy()
+        hass.data[DOMAIN][entry.entry_id]["prev_devices_update"] = True
+        hass.config_entries.async_update_entry(entry, options=new_options)
+
+    if hass.data[DOMAIN][entry.entry_id][SHOULD_RELOAD]:
+        hass.async_create_task(hass.config_entries.async_reload(entry.entry_id))
 
     return True
 
@@ -161,6 +194,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Remove a config entry."""
+    # Remove store file
+    store = Store(hass, 1, DOMAIN)
+    await store.async_remove()
 
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
@@ -339,6 +379,7 @@ class CoordinatorEntityManager:
         config_entry: ConfigEntry,
         process_entities_callback,
         async_add_entities,
+        use_store: bool = False,
     ) -> None:
         self.hass = hass
         self.coordinator = coordinator
@@ -349,9 +390,25 @@ class CoordinatorEntityManager:
             coordinator.async_add_listener(self.process_entities)
         )
         self.entity_unique_ids = set()
+        self.use_store = use_store
+        self.store = None
+        self.cache_data = None
+        if use_store:
+            self.store = Store(hass, 1, DOMAIN)
 
+    def get_cache_data(self):
+        return self.cache_data
+
+    @callback
     def process_entities(self):
-        entities = self.process_entities_callback(self.hass, self.config_entry)
+        if self.use_store:
+            entities, cache_data = self.process_entities_callback(
+                self.hass, self.config_entry
+            )
+            self.cache_data = cache_data
+            self.store.async_delay_save(self.get_cache_data)
+        else:
+            entities = self.process_entities_callback(self.hass, self.config_entry)
         for entity in entities:
             unique_id = entity.unique_id
             if unique_id is None:
