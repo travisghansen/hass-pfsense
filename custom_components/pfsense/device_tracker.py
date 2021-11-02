@@ -14,7 +14,10 @@ from homeassistant.helpers.device_registry import (
     async_get as async_get_dev_reg,
 )
 from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.entity_registry import async_get as async_get_ent_reg
+from homeassistant.helpers.entity_registry import (
+    DISABLED_INTEGRATION,
+    async_get as async_get_ent_reg,
+)
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import slugify
@@ -136,7 +139,7 @@ async def async_setup_entry(
             if (
                 entity_id
                 and (entity_entry := ent_reg.async_get(entity_id))
-                and entity_entry.disabled
+                and entity_entry.disabled_by == DISABLED_INTEGRATION
             ):
                 ent_reg.async_update_entity(entity_id, disabled_by=None)
                 hass.data[DOMAIN][config_entry.entry_id][SHOULD_RELOAD] = True
