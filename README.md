@@ -57,13 +57,19 @@ review the disabled entities as what you're looking for is probably there.
 ## binary_sensor
 
 - carp status (enabled/disabled)
+- system notices present (the bell icon in the upper right of the UI)
 
 ## device_tracker
 
-`ScannerEntity` entries are created for the `pfSense` arp table. Disabled by
-default. Not only is the feature disabled by default but created entities are
-currently disabled by default as well. Search the disabled entity list for the
-relevant mac addresses and enable as desired.
+In order to use the `device_tracker` integration you must enable it in the
+integration options and select the **specific** devices you wish to track.
+
+Tracking uses the `pfSense` arp table. Each poll interval the arp table is
+checked for the entry and if present the device is considered `Home`.
+Additionally _after_ the arp table is checked the arp entry is force removed
+(if present) from `pfSense` by the integration. In short, you devices must
+communicate with `pfSense` at least once each poll interval to be considered
+`Home`.
 
 Note that by default `FreeBSD`/`pfSense` use a max age of 20 minutes for arp
 entries (sysctl `net.link.ether.inet.max_age`). You may lower that using
@@ -91,3 +97,53 @@ All of the switches below are disabled by default.
 - nat port forward rules - enable/disable rules
 - nat outbound rules - enable/disable rules
 - services - start/stop services (note that services must be enabled before they can be started)
+
+# services
+
+```
+service: pfsense.close_notice
+data:
+  entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
+  # default is to clear all notices
+  # id: <some id>
+
+service: pfsense.file_notice
+data:
+  entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
+  id: "hass"
+  notice: "hello world"
+  # category: "HASS"
+  # url: ""
+  # priority: 1
+  # local_only: false
+
+service: pfsense.system_halt
+data:
+  entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
+
+service: pfsense.system_reboot
+data:
+  entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
+
+service: pfsense.start_service
+data:
+  entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
+  service_name: "dpinger"
+
+service: pfsense.stop_service
+data:
+  entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
+  service_name: "dpinger"
+
+service: pfsense.restart_service
+data:
+  entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
+  service_name: "dpinger"
+  # only_if_running: false
+
+service: pfsense.send_wol
+data:
+  entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
+  interface: lan
+  mac: "B9:7B:A6:46:B3:8B"
+```
