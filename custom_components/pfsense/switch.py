@@ -73,7 +73,7 @@ async def async_setup_entry(
                         coordinator,
                         SwitchEntityDescription(
                             key="filter.{}".format(tracker),
-                            name="Filter Rule {} ({})".format(tracker, rule["descr"]),
+                            name=rule["descr"] or "Filter Rule {} ({})".format(tracker, rule["descr"]),
                             icon=icon,
                             #entity_category=entity_category,
                             device_class=device_class,
@@ -105,7 +105,7 @@ async def async_setup_entry(
                         coordinator,
                         SwitchEntityDescription(
                             key="nat_port_forward.{}".format(tracker),
-                            name="NAT Port Forward Rule {} ({})".format(
+                            name=rule["descr"] or "NAT Port Forward Rule {} ({})".format(
                                 tracker, rule["descr"]),
                             icon=icon,
                             #entity_category=entity_category,
@@ -142,7 +142,7 @@ async def async_setup_entry(
                         coordinator,
                         SwitchEntityDescription(
                             key="nat_outbound.{}".format(tracker),
-                            name="NAT Outbound Rule {} ({})".format(
+                            name=rule["descr"] or "NAT Outbound Rule {} ({})".format(
                                 tracker, rule["descr"]),
                             icon=icon,
                             #entity_category=entity_category,
@@ -166,7 +166,7 @@ async def async_setup_entry(
                     coordinator,
                     SwitchEntityDescription(
                         key="service.{}.{}".format(service["name"], property),
-                        name="Service {} {}".format(service["name"], property),
+                        name=service["name"] or "Service {} {}".format(service["name"], property),
                         icon=icon,
                         #entity_category=entity_category,
                         device_class=device_class,
@@ -191,7 +191,7 @@ class PfSenseSwitch(PfSenseEntity, SwitchEntity):
         self.config_entry = config_entry
         self.entity_description = entity_description
         self.coordinator = coordinator
-        self._attr_name = f"{self.pfsense_device_name} {entity_description.name}"
+        self._attr_name = f"{entity_description.name} ({self.pfsense_device_name})"
         self._attr_unique_id = slugify(
             f"{self.pfsense_device_unique_id}_{entity_description.key}")
 
@@ -361,3 +361,4 @@ class PfSenseServiceSwitch(PfSenseSwitch):
         result = await self.hass.async_add_executor_job(client.stop_service, service["name"])
         if result:
             await self.coordinator.async_refresh()
+
