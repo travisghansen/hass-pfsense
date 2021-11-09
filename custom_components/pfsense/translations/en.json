@@ -41,7 +41,7 @@
         "description": "Configure Options."
       },
       "device_tracker": {
-        "description": "Choose which devices you want to track. If you don't select any devices, all devices will be tracked but will be disabled by default. If you do select any devices, only those devices will be tracked and will be enabled by default.",
+        "description": "Choose which devices you want to track.",
         "data": {
           "devices": "Devices to Track"
         }

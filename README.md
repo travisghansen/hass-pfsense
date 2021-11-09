@@ -61,10 +61,15 @@ review the disabled entities as what you're looking for is probably there.
 
 ## device_tracker
 
-`ScannerEntity` entries are created for the `pfSense` arp table. Disabled by
-default. Not only is the feature disabled by default but created entities are
-currently disabled by default as well. Search the disabled entity list for the
-relevant mac addresses and enable as desired.
+In order to use the `device_tracker` integration you must enable it in the
+integration options and select the **specific** devices you wish to track.
+
+Tracking uses the `pfSense` arp table. Each poll interval the arp table is
+checked for the entry and if present the device is considered `Home`.
+Additionally _after_ the arp table is checked the arp entry is force removed
+(if present) from `pfSense` by the integration. In short, you devices must
+communicate with `pfSense` at least once each poll interval to be considered
+`Home`.
 
 Note that by default `FreeBSD`/`pfSense` use a max age of 20 minutes for arp
 entries (sysctl `net.link.ether.inet.max_age`). You may lower that using
