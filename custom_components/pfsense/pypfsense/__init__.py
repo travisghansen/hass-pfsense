@@ -6,7 +6,7 @@ from xml.parsers.expat import ExpatError
 import xmlrpc.client
 
 # value to set as the socket timeout
-DEFAULT_TIMEOUT = 5
+DEFAULT_TIMEOUT = 10
 
 
 class Client(object):

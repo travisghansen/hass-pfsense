@@ -42,6 +42,7 @@ from .const import (
     LOADED_PLATFORMS,
     PFSENSE_CLIENT,
     PLATFORMS,
+    SHOULD_RELOAD,
     UNDO_UPDATE_LISTENER,
 )
 from .pypfsense import Client as pfSenseClient
@@ -66,7 +67,10 @@ def dict_get(data: dict, path: str, default=None):
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry):
     """Handle options update."""
-    hass.async_create_task(hass.config_entries.async_reload(entry.entry_id))
+    if hass.data[DOMAIN][entry.entry_id].get(SHOULD_RELOAD, True):
+        hass.async_create_task(hass.config_entries.async_reload(entry.entry_id))
+    else:
+        hass.data[DOMAIN][entry.entry_id][SHOULD_RELOAD] = True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):

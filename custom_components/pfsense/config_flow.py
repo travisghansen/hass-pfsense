@@ -32,16 +32,6 @@ from .pypfsense import Client
 
 _LOGGER = logging.getLogger(__name__)
 
-CONFIG_SCHEMA = vol.Schema(
-    {
-        vol.Required(CONF_URL): str,
-        vol.Optional(CONF_VERIFY_SSL, default=DEFAULT_VERIFY_SSL): bool,
-        vol.Optional(CONF_USERNAME, default=DEFAULT_USERNAME): str,
-        vol.Required(CONF_PASSWORD): str,
-        vol.Optional(CONF_NAME): str,
-    }
-)
-
 
 def cleanse_sensitive_data(message, secrets=[]):
     for secret in secrets:
@@ -156,8 +146,28 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.error(message)
                 errors["base"] = "unknown"
 
+        if not user_input:
+            user_input = {}
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_URL, default=user_input.get(CONF_URL, "")): str,
+                vol.Optional(
+                    CONF_VERIFY_SSL,
+                    default=user_input.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
+                ): bool,
+                vol.Optional(
+                    CONF_USERNAME,
+                    default=user_input.get(CONF_USERNAME, DEFAULT_USERNAME),
+                ): str,
+                vol.Required(
+                    CONF_PASSWORD, default=user_input.get(CONF_PASSWORD, "")
+                ): str,
+                vol.Optional(CONF_NAME, default=user_input.get(CONF_NAME, "")): str,
+            }
+        )
+
         return self.async_show_form(
-            step_id="user", data_schema=CONFIG_SCHEMA, errors=errors
+            step_id="user", data_schema=schema, errors=errors
         )
 
     async def async_step_import(self, user_input):
