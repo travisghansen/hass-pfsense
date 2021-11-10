@@ -67,7 +67,7 @@ integration options and select the **specific** devices you wish to track.
 Tracking uses the `pfSense` arp table. Each poll interval the arp table is
 checked for the entry and if present the device is considered `Home`.
 Additionally _after_ the arp table is checked the arp entry is force removed
-(if present) from `pfSense` by the integration. In short, you devices must
+(if present) from `pfSense` by the integration. In short, your devices must
 communicate with `pfSense` at least once each poll interval to be considered
 `Home`.
 

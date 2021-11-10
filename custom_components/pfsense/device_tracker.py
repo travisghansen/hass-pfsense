@@ -241,7 +241,8 @@ class PfSenseScannerEntity(PfSenseEntity, ScannerEntity):
     @property
     def name(self) -> str:
         """Return the name of the device."""
-        return self.hostname or self._last_known_hostname or self._mac_address
+        identifier = self.hostname or self._last_known_hostname or self._mac_address
+        return f"{self.pfsense_device_name} {identifier}"
 
     @property
     def device_info(self) -> DeviceInfo:
