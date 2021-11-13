@@ -2,33 +2,31 @@
 import logging
 import re
 
-from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import (
-    DataUpdateCoordinator,
-)
-from homeassistant.util.dt import utc_from_timestamp
-from homeassistant.util import slugify
 from homeassistant.components.sensor import (
     STATE_CLASS_MEASUREMENT,
+    SensorEntity,
     SensorEntityDescription,
 )
-from homeassistant.const import (
-    #ENTITY_CATEGORY_DIAGNOSTIC,
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import (  # ENTITY_CATEGORY_DIAGNOSTIC,
     DATA_BYTES,
     DATA_RATE_KILOBYTES_PER_SECOND,
     PERCENTAGE,
     STATE_UNKNOWN,
     TIME_MILLISECONDS,
 )
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_platform
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.util import slugify
+from homeassistant.util.dt import utc_from_timestamp
 
 from . import CoordinatorEntityManager, PfSenseEntity
 from .const import (
     COORDINATOR,
     COUNT,
-    DATA_RATE_PACKETS_PER_SECOND,
     DATA_PACKETS,
+    DATA_RATE_PACKETS_PER_SECOND,
     DOMAIN,
     SENSOR_TYPES,
 )
@@ -36,8 +34,14 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities: entity_platform.AddEntitiesCallback,
+):
     """Set up the pfSense sensors."""
+
+    @callback
     def process_entities_callback(hass, config_entry):
         data = hass.data[DOMAIN][config_entry.entry_id]
         coordinator = data[COORDINATOR]
@@ -48,19 +52,22 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
         # add standard entities
         for sensor_type in resources:
-            enabled_default=False
+            enabled_default = False
             if sensor_type in [
-                    "telemetry.pfstate.used_percent",
-                    "telemetry.mbuf.used_percent",
-                    "telemetry.memory.swap_used_percent",
-                    "telemetry.memory.used_percent",
-                    "telemetry.cpu.frequency.current",
-                    "telemetry.cpu.load_average.one_minute",
-                    "telemetry.cpu.load_average.five_minute",
-                    "telemetry.cpu.load_average.fifteen_minute",
-                    "telemetry.system.temp",
-                    "telemetry.system.boottime"
-                ]:
+                "telemetry.pfstate.used_percent",
+                "telemetry.mbuf.used_percent",
+                "telemetry.memory.swap_used_percent",
+                "telemetry.memory.used_percent",
+                "telemetry.cpu.frequency.current",
+                "telemetry.cpu.load_average.one_minute",
+                "telemetry.cpu.load_average.five_minute",
+                "telemetry.cpu.load_average.fifteen_minute",
+                "telemetry.system.temp",
+                "telemetry.system.boottime",
+                # "dhcp_stats.leases.total",
+                "dhcp_stats.leases.online",
+                # "dhcp_stats.leases.offline",
+            ]:
                 enabled_default = True
 
             entity = PfSenseSensor(
@@ -75,7 +82,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
         for filesystem in state["telemetry"]["filesystems"]:
             device_clean = normalize_filesystem_device_name(filesystem["device"])
             mountpoint_clean = normalize_filesystem_device_name(
-                filesystem["mountpoint"])
+                filesystem["mountpoint"]
+            )
             entity = PfSenseFilesystemSensor(
                 config_entry,
                 coordinator,
@@ -85,7 +93,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
                     native_unit_of_measurement=PERCENTAGE,
                     icon="mdi:harddisk",
                     state_class=STATE_CLASS_MEASUREMENT,
-                    #entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                    # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                 ),
                 True,
             )
@@ -98,18 +106,20 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
             native_unit_of_measurement = None
             icon = "mdi:check-network-outline"
             enabled_default = True
-            #entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
 
             entity = PfSenseCarpInterfaceSensor(
                 config_entry,
                 coordinator,
                 SensorEntityDescription(
                     key=f"carp.interface.{uniqid}",
-                    name="CARP Interface Status {} ({})".format(uniqid, interface["descr"]),
+                    name="CARP Interface Status {} ({})".format(
+                        uniqid, interface["descr"]
+                    ),
                     native_unit_of_measurement=native_unit_of_measurement,
                     icon=icon,
                     state_class=state_class,
-                    #entity_category=entity_category,
+                    # entity_category=entity_category,
                 ),
                 True,
             )
@@ -152,31 +162,40 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
                 native_unit_of_measurement = None
                 icon = None
                 enabled_default = False
-                #entity_category = ENTITY_CATEGORY_DIAGNOSTIC
+                # entity_category = ENTITY_CATEGORY_DIAGNOSTIC
 
                 # enabled_default
-                if property in ["status", "inbytes_kilobytes_per_second", "outbytes_kilobytes_per_second", "inpkts_packets_per_second", "outpkts_packets_per_second"]:
+                if property in [
+                    "status",
+                    "inbytes_kilobytes_per_second",
+                    "outbytes_kilobytes_per_second",
+                    "inpkts_packets_per_second",
+                    "outpkts_packets_per_second",
+                ]:
                     enabled_default = True
 
                 # state class
-                if "_packets_per_second" in property or "_kilobytes_per_second" in property:
+                if (
+                    "_packets_per_second" in property
+                    or "_kilobytes_per_second" in property
+                ):
                     state_class = STATE_CLASS_MEASUREMENT
 
                 # native_unit_of_measurement
                 if "_packets_per_second" in property:
-                    native_unit_of_measurement=DATA_RATE_PACKETS_PER_SECOND
+                    native_unit_of_measurement = DATA_RATE_PACKETS_PER_SECOND
 
                 if "_kilobytes_per_second" in property:
-                    native_unit_of_measurement=DATA_RATE_KILOBYTES_PER_SECOND
+                    native_unit_of_measurement = DATA_RATE_KILOBYTES_PER_SECOND
 
                 if native_unit_of_measurement is None:
                     if "bytes" in property:
-                        native_unit_of_measurement=DATA_BYTES
+                        native_unit_of_measurement = DATA_BYTES
                     if "pkts" in property:
-                        native_unit_of_measurement=DATA_PACKETS
+                        native_unit_of_measurement = DATA_PACKETS
 
                 if property in ["inerrs", "outerrs", "collisions"]:
-                    native_unit_of_measurement=COUNT
+                    native_unit_of_measurement = COUNT
 
                 # icon
                 if "pkts" in property or "bytes" in property:
@@ -193,13 +212,13 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
                     coordinator,
                     SensorEntityDescription(
                         key="telemetry.interface.{}.{}".format(
-                            interface["ifname"], property),
-                        name="Interface {} {}".format(
-                            interface["descr"], property),
+                            interface["ifname"], property
+                        ),
+                        name="Interface {} {}".format(interface["descr"], property),
                         native_unit_of_measurement=native_unit_of_measurement,
                         icon=icon,
                         state_class=state_class,
-                        #entity_category=entity_category,
+                        # entity_category=entity_category,
                     ),
                     enabled_default,
                 )
@@ -213,13 +232,13 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
                 native_unit_of_measurement = None
                 icon = "mdi:router-network"
                 enabled_default = True
-                #entity_category = ENTITY_CATEGORY_DIAGNOSTIC
+                # entity_category = ENTITY_CATEGORY_DIAGNOSTIC
 
                 if property == "loss":
                     native_unit_of_measurement = PERCENTAGE
 
                 if property in ["delay", "stddev"]:
-                    native_unit_of_measurement=TIME_MILLISECONDS
+                    native_unit_of_measurement = TIME_MILLISECONDS
 
                 if property == "status":
                     icon = "mdi:check-network-outline"
@@ -228,23 +247,27 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
                     config_entry,
                     coordinator,
                     SensorEntityDescription(
-                        key="telemetry.gateway.{}.{}".format(
-                            gateway["name"], property),
+                        key="telemetry.gateway.{}.{}".format(gateway["name"], property),
                         name="Gateway {} {}".format(gateway["name"], property),
                         native_unit_of_measurement=native_unit_of_measurement,
                         icon=icon,
                         state_class=state_class,
-                        #entity_category=entity_category,
+                        # entity_category=entity_category,
                     ),
                     enabled_default,
                 )
                 entities.append(entity)
 
         return entities
-    
-    cem = CoordinatorEntityManager(hass, hass.data[DOMAIN][config_entry.entry_id][COORDINATOR], config_entry, process_entities_callback, async_add_entities)
-    cem.process_entities()
 
+    cem = CoordinatorEntityManager(
+        hass,
+        hass.data[DOMAIN][config_entry.entry_id][COORDINATOR],
+        config_entry,
+        process_entities_callback,
+        async_add_entities,
+    )
+    cem.process_entities()
 
 
 def normalize_filesystem_device_name(device_name):
@@ -268,7 +291,8 @@ class PfSenseSensor(PfSenseEntity, SensorEntity):
         self._attr_entity_registry_enabled_default = enabled_default
         self._attr_name = f"{self.pfsense_device_name} {entity_description.name}"
         self._attr_unique_id = slugify(
-            f"{self.pfsense_device_unique_id}_{entity_description.key}")
+            f"{self.pfsense_device_unique_id}_{entity_description.key}"
+        )
 
     @property
     def native_value(self):
@@ -287,8 +311,7 @@ class PfSenseFilesystemSensor(PfSenseSensor):
         state = self.coordinator.data
         found = None
         for filesystem in state["telemetry"]["filesystems"]:
-            device_clean = normalize_filesystem_device_name(
-                filesystem["device"])
+            device_clean = normalize_filesystem_device_name(filesystem["device"])
             if self.entity_description.key == f"telemetry.filesystems.{device_clean}":
                 found = filesystem
                 break
@@ -352,6 +375,7 @@ class PfSenseInterfaceSensor(PfSenseSensor):
         except KeyError:
             return STATE_UNKNOWN
 
+
 class PfSenseCarpInterfaceSensor(PfSenseSensor):
     def _pfsense_get_interface_name(self):
         return self.entity_description.key.split(".")[2]
@@ -370,7 +394,15 @@ class PfSenseCarpInterfaceSensor(PfSenseSensor):
     def extra_state_attributes(self):
         attributes = {}
         interface = self._pfsense_get_interface()
-        for attr in ["interface", "vhid", "advskew", "advbase", "type", "subnet_bits", "subnet"]:
+        for attr in [
+            "interface",
+            "vhid",
+            "advskew",
+            "advbase",
+            "type",
+            "subnet_bits",
+            "subnet",
+        ]:
             attributes[attr] = interface[attr]
 
         return attributes
@@ -425,7 +457,6 @@ class PfSenseGatewaySensor(PfSenseSensor):
         if property == "status" and self.native_value != "online":
             return "mdi:close-network-outline"
         return super().icon
-
 
     @property
     def native_value(self):

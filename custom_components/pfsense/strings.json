@@ -9,7 +9,7 @@
           "username": "Username",
           "password": "Password",
           "name": "Firewall Name",
-          "tls_insecure": "Allow Insecure TLS"
+          "verify_ssl": "Verify SSL certificate"
         }
       }
     },
@@ -20,7 +20,8 @@
       "invalid_url_format": "Invalid URL Format",
       "privilege_missing": "User has insufficient privileges (System - HA node sync)",
       "connect_timeout": "Connection timeout",
-      "cannot_connect_tls": "TLS Failure"
+      "cannot_connect_ssl": "SSL Failure",
+      "url_redirect": "Incorrect URL (redirect)"
     },
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
@@ -33,6 +34,12 @@
           "scan_interval": "Scan Interval (seconds)",
           "device_tracker_enabled": "Enable Device Tracker",
           "device_tracker_scan_interval": "Device Tracker Scan Interval (seconds)"
+        }
+      },
+      "device_tracker": {
+        "description": "Choose which devices you want to track.",
+        "data": {
+          "devices": "Devices to Track"
         }
       }
     }

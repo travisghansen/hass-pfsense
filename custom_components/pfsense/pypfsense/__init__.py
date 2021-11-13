@@ -1,11 +1,13 @@
 import json
-import xmlrpc.client
-import ssl
 import socket
-from urllib.parse import urlparse, quote_plus
+import ssl
+from urllib.parse import quote_plus, urlparse
+from xml.parsers.expat import ExpatError
+import xmlrpc.client
 
 # value to set as the socket timeout
-DEFAULT_TIMEOUT = 5
+DEFAULT_TIMEOUT = 10
+
 
 class Client(object):
     """pfSense Client"""
@@ -19,9 +21,13 @@ class Client(object):
         self._username = username
         self._password = password
         self._opts = opts
-        parts = urlparse(url.rstrip("/") + '/xmlrpc.php')
+        parts = urlparse(url.rstrip("/") + "/xmlrpc.php")
         self._url = "{scheme}://{username}:{password}@{host}/xmlrpc.php".format(
-            scheme=parts.scheme, username=quote_plus(username), password=quote_plus(password), host=parts.netloc)
+            scheme=parts.scheme,
+            username=quote_plus(username),
+            password=quote_plus(password),
+            host=parts.netloc,
+        )
         self._url_parts = urlparse(self._url)
 
     # https://stackoverflow.com/questions/64983392/python-multiple-patch-gives-http-client-cannotsendrequest-request-sent
@@ -29,18 +35,17 @@ class Client(object):
         # https://docs.python.org/3/library/xmlrpc.client.html#module-xmlrpc.client
         # https://stackoverflow.com/questions/30461969/disable-default-certificate-verification-in-python-2-7-9
         context = None
-        tls_insecure = False
-        if "tls_insecure" in self._opts.keys():
-            tls_insecure = self._opts["tls_insecure"]
+        verify_ssl = True
+        if "verify_ssl" in self._opts.keys():
+            verify_ssl = self._opts["verify_ssl"]
 
-        if self._url_parts.scheme == "https" and tls_insecure:
+        if self._url_parts.scheme == "https" and not verify_ssl:
             context = ssl._create_unverified_context()
 
         # set to True if necessary during development
         verbose = False
 
-        proxy = xmlrpc.client.ServerProxy(
-            self._url, context=context, verbose=verbose)
+        proxy = xmlrpc.client.ServerProxy(self._url, context=context, verbose=verbose)
         return proxy
 
     def _apply_timeout(func):
@@ -48,14 +53,14 @@ class Client(object):
             response = None
             # timout applies to each recv() call, not the whole request
             default_timeout = socket.getdefaulttimeout()
-            try: 
+            try:
                 socket.setdefaulttimeout(DEFAULT_TIMEOUT)
                 response = func(*args, **kwargs)
             finally:
                 socket.setdefaulttimeout(default_timeout)
             return response
-        return inner
 
+        return inner
 
     @_apply_timeout
     def _get_config_section(self, section):
@@ -64,9 +69,7 @@ class Client(object):
 
     @_apply_timeout
     def _restore_config_section(self, section_name, data):
-        params = {
-            section_name: data
-        }
+        params = {section_name: data}
         response = self._get_proxy().pfsense.restore_config_section(params, 60)
         return response
 
@@ -111,7 +114,6 @@ $toreturn = [
 """
         response = self._exec_php(script)
         return response
-
 
     def get_config(self):
         script = """
@@ -216,7 +218,7 @@ $toreturn = [
         return response["data"]
 
     def get_gateways(self):
-        #{'GW_WAN': {'interface': '<if>', 'gateway': '<ip>', 'name': 'GW_WAN', 'weight': '1', 'ipprotocol': 'inet', 'interval': '', 'descr': 'Interface wan Gateway', 'monitor': '<ip>', 'friendlyiface': 'wan', 'friendlyifdescr': 'WAN', 'isdefaultgw': True, 'attribute': 0, 'tiername': 'Default (IPv4)'}}
+        # {'GW_WAN': {'interface': '<if>', 'gateway': '<ip>', 'name': 'GW_WAN', 'weight': '1', 'ipprotocol': 'inet', 'interval': '', 'descr': 'Interface wan Gateway', 'monitor': '<ip>', 'friendlyiface': 'wan', 'friendlyifdescr': 'WAN', 'isdefaultgw': True, 'attribute': 0, 'tiername': 'Default (IPv4)'}}
         script = """
 $toreturn = [
   "data" => return_gateways_array(),
@@ -232,7 +234,7 @@ $toreturn = [
                 return gateways[g]
 
     def get_gateways_status(self):
-        #{'GW_WAN': {'monitorip': '<ip>', 'srcip': '<ip>', 'name': 'GW_WAN', 'delay': '0.387ms', 'stddev': '0.097ms', 'loss': '0.0%', 'status': 'online', 'substatus': 'none'}}
+        # {'GW_WAN': {'monitorip': '<ip>', 'srcip': '<ip>', 'name': 'GW_WAN', 'delay': '0.387ms', 'stddev': '0.097ms', 'loss': '0.0%', 'status': 'online', 'substatus': 'none'}}
         script = """
 $toreturn = [
   // function return_gateways_status($byname = false, $gways = false)
@@ -250,12 +252,20 @@ $toreturn = [
 
     def get_arp_table(self, resolve_hostnames=False):
         # [{'hostname': '?', 'ip-address': '<ip>', 'mac-address': '<mac>', 'interface': 'em0', 'expires': 1199, 'type': 'ethernet'}, ...]
-        php_bool = "true" if resolve_hostnames else "false"
         script = """
+
+$data = json_decode('{}', true);
+$resolve_hostnames = $data["resolve_hostnames"];
 $toreturn = [
-  "data" => system_get_arp_table({}),
+  "data" => system_get_arp_table($resolve_hostnames),
 ];
-""".format(php_bool)
+""".format(
+            json.dumps(
+                {
+                    "resolve_hostnames": resolve_hostnames,
+                }
+            )
+        )
         response = self._exec_php(script)
         return response["data"]
 
@@ -285,8 +295,7 @@ $toreturn = [
 
         for service in response["data"]:
             if "status" not in service:
-                service["status"] = self.get_service_is_running(
-                    service["name"])
+                service["status"] = self.get_service_is_running(service["name"])
 
         return response["data"]
 
@@ -294,11 +303,20 @@ $toreturn = [
         # function is_service_enabled($service_name)
         script = """
 require_once '/etc/inc/service-utils.inc';
+
+$data = json_decode('{}', true);
+$service_name = $data["service_name"];
 $toreturn = [
   // always returns true, so mostly useless at this point
-  "data" => is_service_enabled("{}"),
+  "data" => is_service_enabled($service_name),
 ];
-""".format(service_name)
+""".format(
+            json.dumps(
+                {
+                    "service_name": service_name,
+                }
+            )
+        )
         response = self._exec_php(script)
         return response["data"]
 
@@ -306,33 +324,19 @@ $toreturn = [
         # function is_service_running($service, $ps = "")
         script = """
 require_once '/etc/inc/service-utils.inc';
-$toreturn = [
-  "data" => (bool) is_service_running("{}"),
-];
-""".format(service_name)
-        response = self._exec_php(script)
-        return response["data"]
 
-    def get_service_is_enabled(self, service_name):
-        # function is_service_enabled($service_name)
-        script = """
-require_once '/etc/inc/service-utils.inc';
+$data = json_decode('{}', true);
+$service_name = $data["service_name"];
 $toreturn = [
-  // always returns true, so mostly useless at this point
-  "data" => is_service_enabled("{}"),
+  "data" => (bool) is_service_running($service_name),
 ];
-""".format(service_name)
-        response = self._exec_php(script)
-        return response["data"]
-
-    def get_service_is_running(self, service_name):
-        # function is_service_running($service, $ps = "")
-        script = """
-require_once '/etc/inc/service-utils.inc';
-$toreturn = [
-  "data" => (bool) is_service_running("{}"),
-];
-""".format(service_name)
+""".format(
+            json.dumps(
+                {
+                    "service_name": service_name,
+                }
+            )
+        )
         response = self._exec_php(script)
         return response["data"]
 
@@ -340,61 +344,94 @@ $toreturn = [
         # function start_service($name, $after_sync = false)
         script = """
 require_once '/etc/inc/service-utils.inc';
-$name = "{}";
-$is_running = is_service_running($name);
+
+$data = json_decode('{}', true);
+$service_name = $data["service_name"];
+$is_running = is_service_running($service_name);
 if (!$is_running) {{
-  start_service($name);
+  service_control_start($service_name, []);
 }}
 $toreturn = [
   // no return value
   "data" => true,
 ];
-""".format(service_name)
-        response = self._exec_php(script)
-        return response["data"]
+""".format(
+            json.dumps(
+                {
+                    "service_name": service_name,
+                }
+            )
+        )
+        self._exec_php(script)
 
     def stop_service(self, service_name):
         # function stop_service($name)
         script = """
 require_once '/etc/inc/service-utils.inc';
-$name = "{}";
-$is_running = is_service_running($name);
+
+$data = json_decode('{}', true);
+$service_name = $data["service_name"];
+$is_running = is_service_running($service_name);
 if ($is_running) {{
-  stop_service($name);
+  service_control_stop($service_name, []);
 }}
 $toreturn = [
   // no return value
   "data" => true,
 ];
-""".format(service_name)
-        response = self._exec_php(script)
-        return response["data"]
+""".format(
+            json.dumps(
+                {
+                    "service_name": service_name,
+                }
+            )
+        )
+        self._exec_php(script)
 
     def restart_service(self, service_name):
         # function restart_service($name) (if service is not currently running, it will be started)
         script = """
 require_once '/etc/inc/service-utils.inc';
-restart_service("{}");
+
+$data = json_decode('{}', true);
+$service_name = $data["service_name"];
+service_control_restart($service_name, []);
 $toreturn = [
   // no return value
   "data" => true,
 ];
-""".format(service_name)
-        response = self._exec_php(script)
-        return response["data"]
+""".format(
+            json.dumps(
+                {
+                    "service_name": service_name,
+                }
+            )
+        )
+        self._exec_php(script)
 
     def restart_service_if_running(self, service_name):
         # function restart_service_if_running($service)
         script = """
 require_once '/etc/inc/service-utils.inc';
-restart_service_if_running("{}");
+
+$data = json_decode('{}', true);
+$service_name = $data["service_name"];
+$is_running = is_service_running($service_name);
+if ($is_running) {{
+  service_control_restart($service_name, []);
+}}
 $toreturn = [
   // no return value
   "data" => true,
 ];
-""".format(service_name)
-        response = self._exec_php(script)
-        return response["data"]
+""".format(
+            json.dumps(
+                {
+                    "service_name": service_name,
+                }
+            )
+        )
+        self._exec_php(script)
 
     def get_dhcp_leases(self):
         # function system_get_dhcpleases()
@@ -439,12 +476,20 @@ $toreturn = [
     def get_carp_interface_status(self, uniqueid):
         # function get_carp_interface_status($carpid)
         script = """
-$status = get_carp_interface_status("_vip{}");
+$data = json_decode('{}', true);
+$uniqueid = $data["uniqueid"];
+$carp_if = "_vip{{$uniqueid}}";
+$status = get_carp_interface_status($carp_if);
 $toreturn = [
   "data" => $status,
 ];
-""".format(uniqueid)
-        print(script)
+""".format(
+            json.dumps(
+                {
+                    "uniqueid": uniqueid,
+                }
+            )
+        )
         response = self._exec_php(script)
         return response["data"]
 
@@ -469,6 +514,139 @@ $toreturn = [
   "data" => $vips,
 ];
 """
+        response = self._exec_php(script)
+        return response["data"]
+
+    def delete_arp_entry(self, ip):
+        if len(ip) < 1:
+            return
+        script = """
+$data = json_decode('{}', true);
+$ip = trim($data["ip"]);
+$ret = mwexec("arp -d " . $ip, true);
+$toreturn = [
+  "data" => $ret,
+];
+""".format(
+            json.dumps(
+                {
+                    "ip": ip,
+                }
+            )
+        )
+        self._exec_php(script)
+
+    def arp_get_mac_by_ip(self, ip, do_ping=True):
+        """function arp_get_mac_by_ip($ip, $do_ping = true)"""
+        script = """
+$data = json_decode('{}', true);
+$ip = $data["ip"];
+$do_ping = $data["do_ping"];
+$toreturn = [
+  "data" => arp_get_mac_by_ip($ip, $do_ping),
+];
+""".format(
+            json.dumps(
+                {
+                    "ip": ip,
+                    "do_ping": do_ping,
+                }
+            )
+        )
+        response = self._exec_php(script)["data"]
+        if not response:
+            return None
+        return response
+
+    def system_reboot(self, type="normal"):
+        """
+        type = normal = simple reboot
+        type = reroot = a reroot reboot
+        type = fsck = perform an fsck on next boot
+        """
+        script = """
+$data = json_decode('{}', true);
+$type = $data["type"];
+$type = strtolower($type);
+
+switch ($type) {{
+    case 'fsck':
+        if (php_uname('m') != 'arm') {{
+            mwexec('/sbin/nextboot -e "pfsense.fsck.force=5"');
+        }}
+        system_reboot();
+        break;
+    case 'reroot':
+        system_reboot_sync(true);
+        break;
+    case 'normal':
+        system_reboot();
+        break;
+    default:
+        break;
+}}
+
+$toreturn = [
+  "data" => true,
+];
+""".format(
+            json.dumps(
+                {
+                    "type": type,
+                }
+            )
+        )
+        try:
+            self._exec_php(script)
+        except ExpatError:
+            # ignore response failures because the system is going down
+            pass
+
+    def system_halt(self):
+        script = """
+system_halt();
+$toreturn = [
+  "data" => true,
+];
+"""
+        try:
+            self._exec_php(script)
+        except ExpatError:
+            # ignore response failures because the system is going down
+            pass
+
+    def send_wol(self, interface, mac):
+        """
+        interface should be wan, lan, opt1, opt2 etc, not the description
+        """
+
+        script = """
+$data = json_decode('{}', true);
+$if = $data["interface"];
+$mac = $data["mac"];
+function send_wol($if, $mac) {{
+        $ipaddr = get_interface_ip($if);
+        if (!is_ipaddr($ipaddr) || !is_macaddr($mac)) {{
+                return false;
+        }}
+
+        $bcip = gen_subnet_max($ipaddr, get_interface_subnet($if));
+        return (bool) !mwexec("/usr/local/bin/wol -i {{$bcip}} {{$mac}}");
+}}
+
+$value = send_wol($if, $mac);
+$toreturn = [
+  "data" => $value,
+];
+""".format(
+            json.dumps(
+                {
+                    "interface": interface,
+                    "mac": mac,
+                }
+            )
+        )
+
         response = self._exec_php(script)
         return response["data"]
 
@@ -603,4 +781,128 @@ foreach ($ifdescrs as $ifdescr => $ifname) {
         for i, i_key in enumerate(data["interfaces"].keys()):
             data["interfaces"][i_key] = json.loads(data["interfaces"][i_key])
 
+        if isinstance(data["gateways"], list):
+            data["gateways"] = {}
+
         return data
+
+    def are_notices_pending(self, category="all"):
+        """
+        are_notices_pending($category = "all")
+        $category appears to be ignored currently
+        """
+        script = """
+$data = json_decode('{}', true);
+$category = $data["category"];
+$toreturn = [
+  "data" => are_notices_pending($category),
+];
+""".format(
+            json.dumps(
+                {
+                    "category": category,
+                }
+            )
+        )
+
+        response = self._exec_php(script)
+        return response["data"]
+
+    def get_notices(self, category="all"):
+        script = """
+$data = json_decode('{}', true);
+$category = $data["category"];
+$value = get_notices($category);
+if (!$value) {{
+    $value = false;
+}}
+$toreturn = [
+  "data" => $value,
+];
+""".format(
+            json.dumps(
+                {
+                    "category": category,
+                }
+            )
+        )
+
+        response = self._exec_php(script)
+        value = response["data"]
+        if value is False:
+            return []
+
+        notices = []
+        for key in value.keys():
+            notice = value.get(key)
+            notice["created_at"] = key
+            notices.append(notice)
+
+        return notices
+
+    def file_notice(
+        self, id, notice, category="General", url="", priority=1, local_only=False
+    ):
+        """
+        /****f* notices/file_notice
+        * NAME
+        *   file_notice
+        * INPUTS
+        *       $id, $notice, $category, $url, $priority, $local_only
+        * RESULT
+        *   Files a notice and kicks off the various alerts, smtp, telegram, pushover, system log, LED's, etc.
+        *   If $local_only is true then the notice is not sent to external places (smtp, telegram, pushover)
+        ******/
+        function file_notice($id, $notice, $category = "General", $url = "", $priority = 1, $local_only = false)
+        """
+
+        script = """
+$data = json_decode('{}', true);
+$id = $data["id"];
+$notice = $data["notice"];
+$category = $data["category"];
+$url = $data["url"];
+$priority = $data["priority"];
+$local_only = $data["local_only"];
+
+$value = file_notice($id, $notice, $category, $url, $priority, $local_only);
+$toreturn = [
+  "data" => $value,
+];
+""".format(
+            json.dumps(
+                {
+                    "id": id,
+                    "notice": notice,
+                    "category": category,
+                    "url": url,
+                    "priority": priority,
+                    "local_only": local_only,
+                }
+            )
+        )
+
+        response = self._exec_php(script)
+        return response["data"]
+
+    def close_notice(self, id):
+        """
+        id = "all" to wipe everything
+        """
+        script = """
+$data = json_decode('{}', true);
+$id = $data["id"];
+close_notice($id);
+$toreturn = [
+  "data" => true,
+];
+""".format(
+            json.dumps(
+                {
+                    "id": id,
+                }
+            )
+        )
+
+        response = self._exec_php(script)
+        return response["data"]
