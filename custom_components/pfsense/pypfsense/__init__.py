@@ -770,7 +770,7 @@ foreach ($ifdescrs as $ifdescr => $ifname) {
   // I know these look off, but they are indeed correct
   $data["descr"] = $ifname;
   $data["ifname"] = $ifdescr;
-  $toreturn["interfaces"][${ifdescr}] = json_encode($data);
+  $toreturn["interfaces"]["${ifdescr}"] = json_encode($data);
 }
 """
         data = self._exec_php(script)
