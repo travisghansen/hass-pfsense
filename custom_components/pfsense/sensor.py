@@ -309,6 +309,9 @@ class PfSenseSensor(PfSenseEntity, SensorEntity):
             if value == 0 and self._previous_value is not None:
                 value = self._previous_value
         
+        if value == 0 and self.entity_description.key == "telemetry.cpu.frequency.current":
+            return STATE_UNKNOWN
+
         self._previous_value = value
 
         return value
