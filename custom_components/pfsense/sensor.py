@@ -58,6 +58,7 @@ async def async_setup_entry(
                 "telemetry.mbuf.used_percent",
                 "telemetry.memory.swap_used_percent",
                 "telemetry.memory.used_percent",
+                "telemetry.cpu.used_percent",
                 "telemetry.cpu.frequency.current",
                 "telemetry.cpu.load_average.one_minute",
                 "telemetry.cpu.load_average.five_minute",
@@ -311,8 +312,11 @@ class PfSenseSensor(PfSenseEntity, SensorEntity):
         if self.entity_description.key == "telemetry.cpu.frequency.current":
             if value == 0 and self._previous_value is not None:
                 value = self._previous_value
-        
-        if value == 0 and self.entity_description.key == "telemetry.cpu.frequency.current":
+
+        if (
+            value == 0
+            and self.entity_description.key == "telemetry.cpu.frequency.current"
+        ):
             return STATE_UNKNOWN
 
         self._previous_value = value
