@@ -302,6 +302,9 @@ class PfSenseSensor(PfSenseEntity, SensorEntity):
         if value is None:
             return STATE_UNKNOWN
 
+        if value == 0 and self.entity_description.key == "telemetry.system.temp":
+            return STATE_UNKNOWN
+
         if self.entity_description.key == "telemetry.system.boottime":
             value = utc_from_timestamp(value).isoformat()
 
