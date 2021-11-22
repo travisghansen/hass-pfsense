@@ -85,7 +85,9 @@ ini_set('display_errors', 0);
 $toreturn_real = $toreturn;
 $toreturn = [];
 $toreturn["real"] = json_encode($toreturn_real);
-""".format(script)
+""".format(
+            script
+        )
         response = self._get_proxy().pfsense.exec_php(script)
         response = json.loads(response["real"])
         return response
