@@ -3,7 +3,6 @@ import logging
 import re
 
 from awesomeversion import AwesomeVersion
-
 from homeassistant.components.sensor import (
     STATE_CLASS_MEASUREMENT,
     SensorEntity,
@@ -11,12 +10,12 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (  # ENTITY_CATEGORY_DIAGNOSTIC,
-    __version__,
     DATA_BYTES,
     DATA_RATE_KILOBYTES_PER_SECOND,
     PERCENTAGE,
     STATE_UNKNOWN,
     TIME_MILLISECONDS,
+    __version__,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_platform
@@ -24,7 +23,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import slugify
 from homeassistant.util.dt import utc_from_timestamp
 
-from . import CoordinatorEntityManager, PfSenseEntity
+from . import CoordinatorEntityManager, PfSenseEntity, dict_get
 from .const import (
     COORDINATOR,
     COUNT,
@@ -33,8 +32,6 @@ from .const import (
     DOMAIN,
     SENSOR_TYPES,
 )
-
-from . import dict_get
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -308,7 +305,7 @@ class PfSenseSensor(PfSenseEntity, SensorEntity):
         if value is None:
             if self.entity_description.key == "telemetry.system.boottime":
                 return value
-                
+
             return STATE_UNKNOWN
 
         if value == 0 and self.entity_description.key == "telemetry.system.temp":
