@@ -273,6 +273,10 @@ class PfSenseData:
     def _get_notices(self):
         return self._client.get_notices()
 
+    @_log_timing
+    def _get_arp_table(self):
+        return self._client.get_arp_table(True)
+
     def update(self, opts={}):
         """Fetch the latest state from pfSense."""
         current_time = time.time()
@@ -288,7 +292,7 @@ class PfSenseData:
         self._state["previous_state"] = previous_state
 
         if "scope" in opts.keys() and opts["scope"] == "device_tracker":
-            self._state["arp_table"] = self._client.get_arp_table(True)
+            self._state["arp_table"] = self._get_arp_table()
         else:
             self._state["telemetry"] = self._get_telemetry()
             self._state["config"] = self._get_config()
