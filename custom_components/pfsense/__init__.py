@@ -232,34 +232,44 @@ class PfSenseData:
     @_log_timing
     def _get_system_info(self):
         return self._client.get_system_info()
+    
     @_log_timing
     def _get_telemetry(self):
         return self._client.get_telemetry()
 
+    @_log_timing
     def _get_host_firmware_version(self):
         return self._client.get_host_firmware_version()
 
+    @_log_timing
     def _get_config(self):
         return self._client.get_config()
     
+    @_log_timing
     def _get_interfaces(self):
         return self._client.get_interfaces()
     
+    @_log_timing
     def _get_services(self):
         return self._client.get_services()
     
+    @_log_timing
     def _get_carp_interfaces(self):
         return self._client.get_carp_interfaces()
     
+    @_log_timing
     def _get_carp_status(self):
         return self._client.get_carp_status()
     
+    @_log_timing
     def _get_dhcp_leases(self):
         return self._client.get_dhcp_leases()
     
+    @_log_timing
     def _are_notices_pending(self):
         return self._client.are_notices_pending()
 
+    @_log_timing
     def _get_notices(self):
         return self._client.get_notices()
 
