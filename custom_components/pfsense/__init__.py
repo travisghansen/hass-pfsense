@@ -223,7 +223,8 @@ class PfSenseData:
             begin = time.time()
             response = func(*args, **kwargs)
             end = time.time()
-            _LOGGER.debug(f"execution time: PfSenseData.{func.__name__} {end - begin}")
+            elapsed = round((end - begin), 3)
+            _LOGGER.debug(f"execution time: PfSenseData.{func.__name__} {elapsed}")
             
             return response
 
