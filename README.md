@@ -52,6 +52,12 @@ Simply go to `Configuration -> Integrations -> Add Integration` and search for
   `pfSense` arp table (default: `false`)
 - `Device Tracker Scan Interval (seconds)` - scan interval to use for arp
   updates (default: `60`)
+- `Device Tracker Consider Home (seconds)` - seconds to wait until marking
+  a device as not home after not being seen.
+  (default: `0`)
+  - `0` - disabled (if device is not present during any given scan interval it
+    is considered away)
+  - `> 0` - generally should be a multiple of the configured scan interval
 
 # entities
 

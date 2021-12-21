@@ -489,6 +489,10 @@ class PfSenseGatewaySensor(PfSenseSensor):
     def native_value(self):
         gateway = self._pfsense_get_gateway()
         property = self._pfsense_get_gateway_property_name()
+
+        if gateway is None:
+            return STATE_UNKNOWN
+
         try:
             value = gateway[property]
             # cleanse "ms", etc from values
