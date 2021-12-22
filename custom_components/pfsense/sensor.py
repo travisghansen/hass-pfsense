@@ -3,7 +3,6 @@ import logging
 import re
 
 from awesomeversion import AwesomeVersion
-
 from homeassistant.components.sensor import (
     STATE_CLASS_MEASUREMENT,
     SensorEntity,
@@ -11,12 +10,12 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (  # ENTITY_CATEGORY_DIAGNOSTIC,
-    __version__,
     DATA_BYTES,
     DATA_RATE_KILOBYTES_PER_SECOND,
     PERCENTAGE,
     STATE_UNKNOWN,
     TIME_MILLISECONDS,
+    __version__,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_platform
@@ -24,7 +23,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import slugify
 from homeassistant.util.dt import utc_from_timestamp
 
-from . import CoordinatorEntityManager, PfSenseEntity
+from . import CoordinatorEntityManager, PfSenseEntity, dict_get
 from .const import (
     COORDINATOR,
     COUNT,
@@ -33,8 +32,6 @@ from .const import (
     DOMAIN,
     SENSOR_TYPES,
 )
-
-from . import dict_get
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -264,6 +261,64 @@ async def async_setup_entry(
                 )
                 entities.append(entity)
 
+        # openvpn servers
+        for vpnid in dict_get(state, "telemetry.openvpn.servers", {}).keys():
+            servers = dict_get(state, "telemetry.openvpn.servers", {})
+            server = servers[vpnid]
+            for property in [
+                "connected_client_count",
+                "total_bytes_recv",
+                "total_bytes_sent",
+                "total_bytes_recv_kilobytes_per_second",
+                "total_bytes_sent_kilobytes_per_second",
+            ]:
+                state_class = None
+                native_unit_of_measurement = None
+                icon = None
+                enabled_default = False
+
+                # state class
+                if "_kilobytes_per_second" in property:
+                    state_class = STATE_CLASS_MEASUREMENT
+
+                # native_unit_of_measurement
+                if "_kilobytes_per_second" in property:
+                    native_unit_of_measurement = DATA_RATE_KILOBYTES_PER_SECOND
+
+                if native_unit_of_measurement is None:
+                    if "bytes" in property:
+                        native_unit_of_measurement = DATA_BYTES
+
+                if property in ["connected_client_count"]:
+                    native_unit_of_measurement = COUNT
+
+                # icon
+                if "bytes" in property:
+                    icon = "mdi:server-network"
+
+                if property == "connected_client_count":
+                    icon = "mdi:ip-network-outline"
+
+                if icon is None:
+                    icon = "mdi:gauge"
+
+                entity = PfSenseOpenVPNServerSensor(
+                    config_entry,
+                    coordinator,
+                    SensorEntityDescription(
+                        key="telemetry.openvpn.servers.{}.{}".format(vpnid, property),
+                        name="OpenVPN Server {} ({}) {}".format(
+                            vpnid, server["name"], property
+                        ),
+                        native_unit_of_measurement=native_unit_of_measurement,
+                        icon=icon,
+                        state_class=state_class,
+                        # entity_category=entity_category,
+                    ),
+                    enabled_default,
+                )
+                entities.append(entity)
+
         return entities
 
     cem = CoordinatorEntityManager(
@@ -308,7 +363,7 @@ class PfSenseSensor(PfSenseEntity, SensorEntity):
         if value is None:
             if self.entity_description.key == "telemetry.system.boottime":
                 return value
-                
+
             return STATE_UNKNOWN
 
         if value == 0 and self.entity_description.key == "telemetry.system.temp":
@@ -492,6 +547,10 @@ class PfSenseGatewaySensor(PfSenseSensor):
     def native_value(self):
         gateway = self._pfsense_get_gateway()
         property = self._pfsense_get_gateway_property_name()
+
+        if gateway is None:
+            return STATE_UNKNOWN
+
         try:
             value = gateway[property]
             # cleanse "ms", etc from values
@@ -499,5 +558,48 @@ class PfSenseGatewaySensor(PfSenseSensor):
                 value = re.sub("[^0-9\.]*", "", value)
 
             return value
+        except KeyError:
+            return STATE_UNKNOWN
+
+
+class PfSenseOpenVPNServerSensor(PfSenseSensor):
+    def _pfsense_get_server_property_name(self):
+        return self.entity_description.key.split(".")[4]
+
+    def _pfsense_get_server_vpnid(self):
+        return self.entity_description.key.split(".")[3]
+
+    def _pfsense_get_server(self):
+        state = self.coordinator.data
+        found = None
+        vpnid = self._pfsense_get_server_vpnid()
+        for server_vpnid in dict_get(state, "telemetry.openvpn.servers", {}).keys():
+            if vpnid == server_vpnid:
+                found = state["telemetry"]["openvpn"]["servers"][vpnid]
+                break
+        return found
+
+    @property
+    def extra_state_attributes(self):
+        attributes = {}
+        server = self._pfsense_get_server()
+        if server is None:
+            return attributes
+
+        for attr in ["vpnid", "name"]:
+            attributes[attr] = server[attr]
+
+        return attributes
+
+    @property
+    def native_value(self):
+        server = self._pfsense_get_server()
+        property = self._pfsense_get_server_property_name()
+
+        if server is None:
+            return STATE_UNKNOWN
+
+        try:
+            return server[property]
         except KeyError:
             return STATE_UNKNOWN

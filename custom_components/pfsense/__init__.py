@@ -225,7 +225,7 @@ class PfSenseData:
             end = time.time()
             elapsed = round((end - begin), 3)
             _LOGGER.debug(f"execution time: PfSenseData.{func.__name__} {elapsed}")
-            
+
             return response
 
         return inner
@@ -233,7 +233,7 @@ class PfSenseData:
     @_log_timing
     def _get_system_info(self):
         return self._client.get_system_info()
-    
+
     @_log_timing
     def _get_telemetry(self):
         return self._client.get_telemetry()
@@ -245,27 +245,27 @@ class PfSenseData:
     @_log_timing
     def _get_config(self):
         return self._client.get_config()
-    
+
     @_log_timing
     def _get_interfaces(self):
         return self._client.get_interfaces()
-    
+
     @_log_timing
     def _get_services(self):
         return self._client.get_services()
-    
+
     @_log_timing
     def _get_carp_interfaces(self):
         return self._client.get_carp_interfaces()
-    
+
     @_log_timing
     def _get_carp_status(self):
         return self._client.get_carp_status()
-    
+
     @_log_timing
     def _get_dhcp_leases(self):
         return self._client.get_dhcp_leases()
-    
+
     @_log_timing
     def _are_notices_pending(self):
         return self._client.are_notices_pending()
@@ -358,7 +358,9 @@ class PfSenseData:
                             "used_percent"
                         ] = cpu_used_percent
 
-                for interface_name in dict_get(self._state, "telemetry.interfaces", {}).keys():
+                for interface_name in dict_get(
+                    self._state, "telemetry.interfaces", {}
+                ).keys():
                     interface = dict_get(
                         self._state, f"telemetry.interfaces.{interface_name}"
                     )
@@ -422,6 +424,55 @@ class PfSenseData:
                             if previous_value is None:
                                 previous_value = value
                             interface[new_property] = int(round(previous_value, 0))
+
+                for server_name in dict_get(
+                    self._state, "telemetry.openvpn.servers", {}
+                ).keys():
+                    if (
+                        server_name
+                        not in dict_get(
+                            self._state, "telemetry.openvpn.servers", {}
+                        ).keys()
+                    ):
+                        continue
+
+                    if (
+                        server_name
+                        not in dict_get(
+                            self._state, "previous_state.telemetry.openvpn.servers", {}
+                        ).keys()
+                    ):
+                        continue
+
+                    server = self._state["telemetry"]["openvpn"]["servers"][server_name]
+                    previous_server = self._state["previous_state"]["telemetry"][
+                        "openvpn"
+                    ]["servers"][server_name]
+
+                    for property in [
+                        "total_bytes_recv",
+                        "total_bytes_sent",
+                    ]:
+
+                        current_parent_value = server[property]
+                        previous_parent_value = previous_server[property]
+                        change = abs(current_parent_value - previous_parent_value)
+                        rate = change / elapsed_time
+
+                        value = 0
+                        if "pkts" in property:
+                            label = "packets_per_second"
+                            value = rate
+                        if "bytes" in property:
+                            label = "kilobytes_per_second"
+                            # 1 Byte = 8 bits
+                            # 1 byte is equal to 0.001 kilobytes
+                            KBs = rate / 1000
+                            # Kbs = KBs * 8
+                            value = KBs
+
+                        new_property = f"{property}_{label}"
+                        server[new_property] = int(round(value, 0))
 
 
 class CoordinatorEntityManager:

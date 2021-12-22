@@ -718,6 +718,8 @@ $cpu_frequency_parts = explode(",", $cpu_frequency);
 $memory_info = exec_command("sysctl hw.physmem hw.usermem hw.realmem vm.swap_total vm.swap_reserved");
 $memory_parts = explode("\n", $memory_info);
 
+$ovpn_servers = openvpn_get_active_servers();
+
 $toreturn = [
 
   "pfstate" => [
@@ -770,6 +772,8 @@ $toreturn = [
 
   "interfaces" => [],
 
+  "openvpn" => [],
+
   "gateways" => return_gateways_status(true),
 
 ];
@@ -788,6 +792,26 @@ foreach ($ifdescrs as $ifdescr => $ifname) {
   $data["ifname"] = $ifdescr;
   $toreturn["interfaces"]["${ifdescr}"] = $data;
 }
+
+foreach ($ovpn_servers as $server) {
+  $vpnid = $server["vpnid"];
+  $name = $server["name"];
+  $conn_count = count($server["conns"]);
+
+  $total_bytes_recv = 0;
+  $total_bytes_sent = 0;
+  foreach ($server["conns"] as $conn) {
+    $total_bytes_recv += $conn["bytes_recv"];
+    $total_bytes_sent += $conn["bytes_sent"];
+  }
+  
+  $toreturn["openvpn"]["servers"][$vpnid]["name"] = $name;
+  $toreturn["openvpn"]["servers"][$vpnid]["vpnid"] = $vpnid;
+  $toreturn["openvpn"]["servers"][$vpnid]["connected_client_count"] = $conn_count;
+  $toreturn["openvpn"]["servers"][$vpnid]["total_bytes_recv"] = $total_bytes_recv;
+  $toreturn["openvpn"]["servers"][$vpnid]["total_bytes_sent"] = $total_bytes_sent;
+}
+
 """
         data = self._exec_php(script)
 
