@@ -281,6 +281,9 @@ async def async_setup_entry(
                 if "_kilobytes_per_second" in property:
                     state_class = STATE_CLASS_MEASUREMENT
 
+                if property == "connected_client_count":
+                    state_class = STATE_CLASS_MEASUREMENT
+
                 # native_unit_of_measurement
                 if "_kilobytes_per_second" in property:
                     native_unit_of_measurement = DATA_RATE_KILOBYTES_PER_SECOND
@@ -290,7 +293,7 @@ async def async_setup_entry(
                         native_unit_of_measurement = DATA_BYTES
 
                 if property in ["connected_client_count"]:
-                    native_unit_of_measurement = COUNT
+                    native_unit_of_measurement = "clients"
 
                 # icon
                 if "bytes" in property:
