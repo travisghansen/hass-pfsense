@@ -96,6 +96,27 @@ $toreturn["real"] = json_encode($toreturn_real);
     def get_host_firmware_version(self):
         return self._get_proxy().pfsense.host_firmware_version(1, 60)
 
+    def get_firmware_update_info(self):
+        """
+        # the cache is 2 hours
+        get_system_pkg_version($baseonly = false, $use_cache = true)
+        # for testing
+        rm /var/run/pfSense_version*
+        """
+        script = """
+require_once '/etc/inc/pkg-utils.inc';
+
+$toreturn = [
+  "data" => [
+      "base" => get_system_pkg_version(),
+      // someday add package updates details here
+      "packages" => [],
+    ]
+];
+"""
+        response = self._exec_php(script)
+        return response["data"]
+
     def get_system_serial(self):
         script = """
 $toreturn = [

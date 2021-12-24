@@ -235,6 +235,17 @@ class PfSenseData:
         return self._client.get_system_info()
 
     @_log_timing
+    def _get_firmware_update_info(self):
+        try:
+            return self._client.get_firmware_update_info()
+        except BaseException as err:
+            # can take some time to refresh data
+            # will catch it the next cycle likely
+            if "timed out" in str(err):
+                return None
+            raise err
+
+    @_log_timing
     def _get_telemetry(self):
         return self._client.get_telemetry()
 
@@ -295,6 +306,7 @@ class PfSenseData:
         if "scope" in opts.keys() and opts["scope"] == "device_tracker":
             self._state["arp_table"] = self._get_arp_table()
         else:
+            self._state["firmware_update_info"] = self._get_firmware_update_info()
             self._state["telemetry"] = self._get_telemetry()
             self._state["config"] = self._get_config()
             self._state["interfaces"] = self._get_interfaces()
