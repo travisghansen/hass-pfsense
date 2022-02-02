@@ -594,6 +594,14 @@ $toreturn = [
             return None
         return response
 
+    def flush_states(self):
+       
+        script = """
+mwexec("/sbin/pfctl -F state");
+"""
+        # no response is expected since the connection should have been reset
+        self._exec_php(script)
+
     def system_reboot(self, type="normal"):
         """
         type = normal = simple reboot

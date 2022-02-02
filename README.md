@@ -139,6 +139,10 @@ service: pfsense.system_reboot
 data:
   entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
 
+service: pfsense.flush_states
+data:
+  entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
+
 service: pfsense.start_service
 data:
   entity_id: binary_sensor.pfsense_localdomain_pending_notices_present

@@ -127,6 +127,14 @@ restart_service:
       example: "haproxy|dhcp|dpinger|.."
       default: ""
 
+flush_states:
+  name: Flush states
+  description: Flush the state table (NAT and filter).
+  fields:
+    entity_id:
+      description: pfSense entity id
+      example: "binary_sensor.pfsense_localdomain_pending_notices_present"
+
 system_halt:
   name: Halt system
   description: Halts the system.
