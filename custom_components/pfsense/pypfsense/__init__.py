@@ -597,10 +597,56 @@ $toreturn = [
     def flush_states(self):
        
         script = """
-mwexec("/sbin/pfctl -F state");
+mwexec("/sbin/pfctl -F states");
 """
         # no response is expected since the connection should have been reset
         self._exec_php(script)
+ 
+    def kill_states(self, source, destination=None):
+
+        if (destination is None):
+            script = """
+$data = json_decode('{}', true);
+$source = $data["source"];
+function kill_states($source) {{
+            mwexec("/sbin/pfctl -k $source");
+}}
+kill_states($source);
+$toreturn = [
+  "data" => true,
+];
+""".format(
+            json.dumps(
+                {
+                    "source": source,
+                }
+            )
+        )
+            self._exec_php(script)["data"]
+            return None
+        
+        else:
+            script = """
+$data = json_decode('{}', true);
+$source = $data["source"];
+$destination = $data["destination"];
+function kill_states($source, $destination) {{
+            mwexec("/sbin/pfctl -k $source -k $destination");
+}}
+kill_states($source, $destination);
+$toreturn = [
+  "data" => true,
+];
+""".format(
+            json.dumps(
+                {
+                    "source": source,
+                    "destination": destination,
+                }
+            )
+        )
+            self._exec_php(script)["data"]
+            return None
 
     def system_reboot(self, type="normal"):
         """

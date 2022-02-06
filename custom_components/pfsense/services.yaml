@@ -135,6 +135,30 @@ flush_states:
       description: pfSense entity id
       example: "binary_sensor.pfsense_localdomain_pending_notices_present"
 
+kill_states:
+  name: Kill states
+  description: Kill state entries matching specified source, or source and destination
+  fields:
+    entity_id:
+      description: pfSense entity id
+      example: "binary_sensor.pfsense_localdomain_pending_notices_present"
+
+    source:
+      name: Source
+      description: Host, network, label, or id
+      required: true
+      advanced: false
+      example: "0.0.0.0/0"
+      default: ""
+      
+    destination: 
+      name: Destination
+      description: Host, network, label, or id
+      required: false
+      advanced: false
+      example: "192.168.0.1/24"
+      default: ""
+
 system_halt:
   name: Halt system
   description: Halts the system.
