@@ -139,15 +139,15 @@ service: pfsense.system_reboot
 data:
   entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
 
-service: pfsense.flush_states
+service: pfsense.reset_state_table
 data:
-  entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
+  entity_id: binary_sensor.pfsense_localdomain_pending_notices_present 
 
 service: pfsense.kill_states
 data:
   entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
-  source: 0.0.0.0/0
-  destination: 192.168.0.1/24
+  source: "0.0.0.0/0"
+  destination: "192.168.0.1/24"
 
 service: pfsense.start_service
 data:

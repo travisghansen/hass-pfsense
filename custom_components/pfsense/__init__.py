@@ -609,9 +609,9 @@ class PfSenseEntity(CoordinatorEntity, RestoreEntity):
         else:
             client.restart_service(service_name)
 
-    def service_flush_states(self):
+    def service_reset_state_table(self):
         client = self._get_pfsense_client()
-        client.flush_states()
+        client.reset_state_table()
     
     def service_kill_states(self, source: str, destination: str = None):
         client = self._get_pfsense_client()

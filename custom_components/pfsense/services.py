@@ -13,7 +13,7 @@ from .const import (
     SERVICE_SEND_WOL,
     SERVICE_START_SERVICE,
     SERVICE_STOP_SERVICE,
-    SERVICE_FLUSH_STATES,
+    SERVICE_RESET_STATE_TABLE,
     SERVICE_KILL_STATES,
     SERVICE_SYSTEM_HALT,
     SERVICE_SYSTEM_REBOOT,
@@ -111,8 +111,8 @@ class ServiceRegistrar:
 
         self.hass.services.async_register(
             domain=DOMAIN,
-            service=SERVICE_FLUSH_STATES,
-            schema=cv.make_entity_service_schema({}),
+            service=SERVICE_RESET_STATE_TABLE,
+            schema={},
             service_func=_async_send_service,
         )
         
