@@ -160,4 +160,44 @@ data:
   entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
   interface: lan
   mac: "B9:7B:A6:46:B3:8B"
+
+service: pfsense.set_default_gateway
+data:
+  entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
+  gateway: GW_WAN
+  ip_version: "4"
+
+# extremely advanced, use with caution
+# see EXEC_EXAMPLES.md
+service: pfsense.exec_command
+data:
+  entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
+  command: ping -c 1 yahoo.com
+
+# extremely advanced, use with caution
+# see EXEC_EXAMPLES.md
+service: pfsense.exec_php
+data:
+  entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
+  script: |
+    require_once '/etc/inc/config.inc';
+    global $config;
+    $interface = "lan";
+    $dns = "192.168.0.1";
+
+    if (!is_array($config["dhcpd"])) {
+        $config["dhcpd"] = [];
+    }
+    if (!is_array($config["dhcpd"][$interface])) {
+        $config["dhcpd"][$interface] = [];
+    }
+
+    $config["dhcpd"][$interface]["dnsserver"] = $dns;
+
+    write_config("HASS - exec_php: update dhcpd dns server");
+
+    // reload services, etc here as necessary
+    $toreturn = [
+        "data" => true,
+    ];
 ```

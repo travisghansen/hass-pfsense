@@ -363,12 +363,18 @@ class PfSenseData:
                         idle_change = dict_get(current_cpu, "ticks.idle") - dict_get(
                             previous_cpu, "ticks.idle"
                         )
-                        cpu_used_percent = math.floor(
-                            ((total_change - idle_change) / total_change) * 100
-                        )
-                        self._state["telemetry"]["cpu"][
-                            "used_percent"
-                        ] = cpu_used_percent
+                        # avoid division by 0 issues
+                        if total_change > 0:
+                            cpu_used_percent = math.floor(
+                                ((total_change - idle_change) / total_change) * 100
+                            )
+                            self._state["telemetry"]["cpu"][
+                                "used_percent"
+                            ] = cpu_used_percent
+                        else:
+                            self._state["telemetry"]["cpu"]["used_percent"] = dict_get(
+                                previous_state, "telemetry.cpu.used_percent"
+                            )
 
                 for interface_name in dict_get(
                     self._state, "telemetry.interfaces", {}
@@ -545,6 +551,10 @@ class PfSenseEntity(CoordinatorEntity, RestoreEntity):
     """base entity for pfSense"""
 
     @property
+    def coordinator_context(self):
+        return None
+
+    @property
     def device_info(self):
         """Device info for the firewall."""
         state = self.coordinator.data
@@ -620,3 +630,15 @@ class PfSenseEntity(CoordinatorEntity, RestoreEntity):
     def service_send_wol(self, interface: str, mac: str):
         client = self._get_pfsense_client()
         client.send_wol(interface, mac)
+
+    def service_set_default_gateway(self, gateway: str, ip_version: str):
+        client = self._get_pfsense_client()
+        client.set_default_gateway(gateway, ip_version)
+
+    def service_exec_php(self, script: str):
+        client = self._get_pfsense_client()
+        client._exec_php(script)
+
+    def service_exec_command(self, command: str, background: bool = False):
+        client = self._get_pfsense_client()
+        client._exec_command(command, background)
