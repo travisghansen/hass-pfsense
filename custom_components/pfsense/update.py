@@ -10,7 +10,6 @@ from homeassistant.components.update import (
 )
 from homeassistant.components.update.const import UpdateEntityFeature
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity import EntityCategory
@@ -104,29 +103,29 @@ class PfSenseFirmwareUpdatesAvailableUpdate(PfSenseUpdate):
         return "pfSense"
 
     @property
-    def installed_version(self) -> str | None:
+    def installed_version(self):
         """Version installed and in use."""
         state = self.coordinator.data
 
         try:
-            return state["firmware_update_info"]["base"]["installed_version"]
+            return dict_get(state, "firmware_update_info.base.installed_version")
         except KeyError:
-            return STATE_UNKNOWN
+            return None
 
     @property
-    def latest_version(self) -> str | None:
+    def latest_version(self):
         """Latest version available for install."""
         state = self.coordinator.data
 
         try:
             # fake a new update
             # return "foobar"
-            return state["firmware_update_info"]["base"]["version"]
+            return dict_get(state, "firmware_update_info.base.version")
         except KeyError:
-            return STATE_UNKNOWN
+            return None
 
     @property
-    def in_progress(self) -> bool:
+    def in_progress(self):
         """Update installation in progress."""
         return False
 

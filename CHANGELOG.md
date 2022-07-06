@@ -1,3 +1,10 @@
+# v0.5.2
+
+Released 2022-07-06
+
+- fix the background
+- attempt to work with hass < `2022.07`
+
 # v0.5.1
 
 Released 2022-07-06
