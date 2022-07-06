@@ -87,7 +87,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         CONF_DEVICE_TRACKER_ENABLED, DEFAULT_DEVICE_TRACKER_ENABLED
     )
     client = pfSenseClient(url, username, password, {"verify_ssl": verify_ssl})
-    data = PfSenseData(client, entry)
+    data = PfSenseData(client, entry, hass)
 
     async def async_update_data():
         """Fetch data from pfSense."""
@@ -113,7 +113,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     if not device_tracker_enabled:
         platforms.remove("device_tracker")
     else:
-        device_tracker_data = PfSenseData(client, entry)
+        device_tracker_data = PfSenseData(client, entry, hass)
         device_tracker_scan_interval = options.get(
             CONF_DEVICE_TRACKER_SCAN_INTERVAL, DEFAULT_DEVICE_TRACKER_SCAN_INTERVAL
         )
@@ -208,11 +208,15 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
 
 
 class PfSenseData:
-    def __init__(self, client: pfSenseClient, config_entry: ConfigEntry):
+    def __init__(
+        self, client: pfSenseClient, config_entry: ConfigEntry, hass: HomeAssistant
+    ):
         """Initialize the data object."""
         self._client = client
         self._config_entry = config_entry
+        self._hass = hass
         self._state = {}
+        self._firmware_update_info = None
 
     @property
     def state(self):
@@ -235,15 +239,19 @@ class PfSenseData:
         return self._client.get_system_info()
 
     @_log_timing
-    def _get_firmware_update_info(self):
+    def _refresh_firmware_update_info(self):
         try:
-            return self._client.get_firmware_update_info()
+            self._firmware_update_info = self._client.get_firmware_update_info()
         except BaseException as err:
             # can take some time to refresh data
             # will catch it the next cycle likely
             if "timed out" in str(err):
-                return None
+                return
             raise err
+
+    @_log_timing
+    def _get_firmware_update_info(self):
+        return self._firmware_update_info
 
     @_log_timing
     def _get_telemetry(self):
@@ -299,6 +307,7 @@ class PfSenseData:
             del previous_state["previous_state"]
 
         self._state["system_info"] = self._get_system_info()
+        self._hass.async_add_executor_job(self._refresh_firmware_update_info)
         self._state["host_firmware_version"] = self._get_host_firmware_version()
         self._state["update_time"] = current_time
         self._state["previous_state"] = previous_state
