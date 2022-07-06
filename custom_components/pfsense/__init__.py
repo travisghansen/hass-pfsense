@@ -239,14 +239,10 @@ class PfSenseData:
     def _get_system_info(self):
         return self._client.get_system_info()
 
-    async def _refresh_firmware_update_info(self):
+    @_log_timing
+    def _refresh_firmware_update_info(self):
         try:
-            begin = time.time()
-            #self._firmware_update_info = self._client.get_firmware_update_info()
-            self._firmware_update_info = await self._hass.async_add_executor_job(self._client.get_firmware_update_info)
-            end = time.time()
-            elapsed = round((end - begin), 3)
-            _LOGGER.debug(f"execution time: PfSenseData._refresh_firmware_update_info {elapsed}")
+            self._firmware_update_info = self._client.get_firmware_update_info()
 
         except BaseException as err:
             # can take some time to refresh data
@@ -321,9 +317,10 @@ class PfSenseData:
             self._state["arp_table"] = self._get_arp_table()
         else:
             # queue up the firmaware task
-            task = self._hass.loop.create_task(self._refresh_firmware_update_info())
-            self._background_tasks.add(task)
-            task.add_done_callback(self._background_tasks.discard)
+            #task = self._hass.loop.create_task(self._refresh_firmware_update_info())
+            #self._background_tasks.add(task)
+            #task.add_done_callback(self._background_tasks.discard)
+            self._hass.add_job(self._refresh_firmware_update_info)
 
             self._state["firmware_update_info"] = self._get_firmware_update_info()
             self._state["telemetry"] = self._get_telemetry()
