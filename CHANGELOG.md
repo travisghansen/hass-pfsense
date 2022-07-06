@@ -1,3 +1,9 @@
+# v0.5.1
+
+Released 2022-07-06
+
+- background the firmware refresh process
+
 # v0.5.0
 
 Released 2022-07-05
