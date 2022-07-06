@@ -91,7 +91,7 @@ class PfSenseUpdate(PfSenseEntity, UpdateEntity):
 
 class PfSenseFirmwareUpdatesAvailableUpdate(PfSenseUpdate):
     @property
-    def available(self) -> bool:
+    def available(self):
         state = self.coordinator.data
         if state["firmware_update_info"] is None:
             return False
@@ -145,15 +145,13 @@ class PfSenseFirmwareUpdatesAvailableUpdate(PfSenseUpdate):
     def release_url(self):
         return "https://docs.netgate.com/pfsense/en/latest/releases/index.html"
 
-    async def async_install(
-        self, version: str | None, backup: bool, **kwargs: Any
-    ) -> None:
+    def install(self, version=None, backup=False):
         """Install an update."""
         client = self._get_pfsense_client()
-        pid = await self.hass.async_add_executor_job(client.upgrade_firmware)
+        pid = client.upgrade_firmware()
 
         sleep_time = 10
         running = True
         while running:
-            await self.hass.async_add_executor_job(time.sleep, sleep_time)
-            running = await self.hass.async_add_executor_job(client.pid_is_running, pid)
+            time.sleep(sleep_time)
+            running = client.pid_is_running(pid)
