@@ -88,10 +88,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     )
     client = pfSenseClient(url, username, password, {"verify_ssl": verify_ssl})
     data = PfSenseData(client, entry, hass)
+    scan_interval = options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
 
     async def async_update_data():
         """Fetch data from pfSense."""
-        async with async_timeout.timeout(10):
+        async with async_timeout.timeout(scan_interval - 1):
             await hass.async_add_executor_job(lambda: data.update())
 
             if not data.state:
@@ -99,7 +100,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
             return data.state
 
-    scan_interval = options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     coordinator = DataUpdateCoordinator(
         hass,
         _LOGGER,
@@ -120,7 +120,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
         async def async_update_device_tracker_data():
             """Fetch data from pfSense."""
-            async with async_timeout.timeout(10):
+            async with async_timeout.timeout(device_tracker_scan_interval -1):
                 await hass.async_add_executor_job(
                     lambda: device_tracker_data.update({"scope": "device_tracker"})
                 )
@@ -217,6 +217,7 @@ class PfSenseData:
         self._hass = hass
         self._state = {}
         self._firmware_update_info = None
+        self._background_tasks = set()
 
     @property
     def state(self):
@@ -238,10 +239,15 @@ class PfSenseData:
     def _get_system_info(self):
         return self._client.get_system_info()
 
-    @_log_timing
-    def _refresh_firmware_update_info(self):
+    async def _refresh_firmware_update_info(self):
         try:
-            self._firmware_update_info = self._client.get_firmware_update_info()
+            begin = time.time()
+            #self._firmware_update_info = self._client.get_firmware_update_info()
+            self._firmware_update_info = await self._hass.async_add_executor_job(self._client.get_firmware_update_info)
+            end = time.time()
+            elapsed = round((end - begin), 3)
+            _LOGGER.debug(f"execution time: PfSenseData._refresh_firmware_update_info {elapsed}")
+
         except BaseException as err:
             # can take some time to refresh data
             # will catch it the next cycle likely
@@ -307,7 +313,6 @@ class PfSenseData:
             del previous_state["previous_state"]
 
         self._state["system_info"] = self._get_system_info()
-        self._hass.async_add_executor_job(self._refresh_firmware_update_info)
         self._state["host_firmware_version"] = self._get_host_firmware_version()
         self._state["update_time"] = current_time
         self._state["previous_state"] = previous_state
@@ -315,6 +320,11 @@ class PfSenseData:
         if "scope" in opts.keys() and opts["scope"] == "device_tracker":
             self._state["arp_table"] = self._get_arp_table()
         else:
+            # queue up the firmaware task
+            task = self._hass.loop.create_task(self._refresh_firmware_update_info())
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
+
             self._state["firmware_update_info"] = self._get_firmware_update_info()
             self._state["telemetry"] = self._get_telemetry()
             self._state["config"] = self._get_config()
