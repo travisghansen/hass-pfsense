@@ -1,8 +1,14 @@
+# v0.5.3
+
+Released 2022-07-06
+
+- attempt to work with hass < `2022.07`
+
 # v0.5.2
 
 Released 2022-07-06
 
-- fix the background
+- fix the background refresh process
 - attempt to work with hass < `2022.07`
 
 # v0.5.1

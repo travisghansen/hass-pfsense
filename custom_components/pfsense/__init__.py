@@ -120,7 +120,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
         async def async_update_device_tracker_data():
             """Fetch data from pfSense."""
-            async with async_timeout.timeout(device_tracker_scan_interval -1):
+            async with async_timeout.timeout(device_tracker_scan_interval - 1):
                 await hass.async_add_executor_job(
                     lambda: device_tracker_data.update({"scope": "device_tracker"})
                 )
@@ -317,9 +317,9 @@ class PfSenseData:
             self._state["arp_table"] = self._get_arp_table()
         else:
             # queue up the firmaware task
-            #task = self._hass.loop.create_task(self._refresh_firmware_update_info())
-            #self._background_tasks.add(task)
-            #task.add_done_callback(self._background_tasks.discard)
+            # task = self._hass.loop.create_task(self._refresh_firmware_update_info())
+            # self._background_tasks.add(task)
+            # task.add_done_callback(self._background_tasks.discard)
             self._hass.add_job(self._refresh_firmware_update_info)
 
             self._state["firmware_update_info"] = self._get_firmware_update_info()
