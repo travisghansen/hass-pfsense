@@ -1,3 +1,8 @@
+"""
+note that the xmlrpc api only allows a single request to be handled at a time
+likely via some sort of mutex.
+"""
+
 import json
 import socket
 import ssl
@@ -129,29 +134,6 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
-    def get_gateway_status(self, gateway):
-        gateways = self.get_gateways_status()
-        for g in gateways.keys():
-            if g == gateway:
-                return gateways[g]
-
-    def get_arp_table(self, resolve_hostnames=False):
-        # [{'hostname': '?', 'ip-address': '<ip>', 'mac-address': '<mac>', 'interface': 'em0', 'expires': 1199, 'type': 'ethernet'}, ...]
-        script = """
-
-$data = json_decode('{}', true);
-$resolve_hostnames = $data["resolve_hostnames"];
-$toreturn = [
-  "data" => system_get_arp_table($resolve_hostnames),
-];
-""".format(
-            json.dumps(
-                {
-                    "resolve_hostnames": resolve_hostnames,
-                }
-            )
-        )
-
     @_apply_timeout
     def get_host_firmware_version(self):
         return self._get_proxy().pfsense.host_firmware_version(1, 60)
@@ -164,6 +146,13 @@ $toreturn = [
         rm /var/run/pfSense_version*
         """
         script = """
+// release the mutex immediately so other api calls can go through
+// as this one can take a minute
+require_once '/etc/inc/util.inc';
+global $xmlrpclockkey;
+unlock($xmlrpclockkey);
+//unlock_force("xmlrpc");
+
 require_once '/etc/inc/pkg-utils.inc';
 
 $toreturn = [
@@ -184,7 +173,7 @@ $toreturn = [
   "data" => $ret,
 ];
 """
-        response = self._exec_php_no_timeout(script)
+        response = self._exec_php(script)
         return response["data"]
 
     def pid_is_running(self, pid):
@@ -377,6 +366,11 @@ $toreturn = [
     def get_arp_table(self, resolve_hostnames=False):
         # [{'hostname': '?', 'ip-address': '<ip>', 'mac-address': '<mac>', 'interface': 'em0', 'expires': 1199, 'type': 'ethernet'}, ...]
         script = """
+// release the mutex immediately so other api calls can go through
+// as this one can take a minute
+require_once '/etc/inc/util.inc';
+global $xmlrpclockkey;
+unlock($xmlrpclockkey);
 
 $data = json_decode('{}', true);
 $resolve_hostnames = $data["resolve_hostnames"];
