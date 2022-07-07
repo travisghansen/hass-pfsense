@@ -1,3 +1,9 @@
+# v0.5.4
+
+Released 2022-07-07
+
+- fixes to help concurrency with the xmlrpc api
+
 # v0.5.3
 
 Released 2022-07-06
