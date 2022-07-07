@@ -366,6 +366,12 @@ $toreturn = [
     def get_arp_table(self, resolve_hostnames=False):
         # [{'hostname': '?', 'ip-address': '<ip>', 'mac-address': '<mac>', 'interface': 'em0', 'expires': 1199, 'type': 'ethernet'}, ...]
         script = """
+// release the mutex immediately so other api calls can go through
+// as this one can take a minute
+require_once '/etc/inc/util.inc';
+global $xmlrpclockkey;
+unlock($xmlrpclockkey);
+
 $data = json_decode('{}', true);
 $resolve_hostnames = $data["resolve_hostnames"];
 $toreturn = [
