@@ -1,12 +1,12 @@
 {
   "config": {
     "abort": {
-      "already_configured": "[%key:common::config_flow::abort::dispositivo_já_configurado%]"
+      "already_configured": "Dispositivo já configurado"
     },
     "error": {
-      "cannot_connect": "[%key:common::config_flow::error::não_pode_conectar%]",
-      "invalid_auth": "[%key:common::config_flow::error::autenticação_inválida%]",
-      "unknown": "[%key:common::config_flow::error::desconhecido%]",
+      "cannot_connect": "Não pode conectar",
+      "invalid_auth": "Autenticação Inválida",
+      "unknown": "Erro inesperado",
       "invalid_url_format": "Formato de URL inválido",
       "privilege_missing": "O usuário tem privilégios insuficientes (Sistema - sincronização de nó HA)",
       "connect_timeout": "Tempo limite de conexão",

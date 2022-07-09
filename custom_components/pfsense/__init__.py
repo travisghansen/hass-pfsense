@@ -314,7 +314,11 @@ class PfSenseData:
         self._state["previous_state"] = previous_state
 
         if "scope" in opts.keys() and opts["scope"] == "device_tracker":
-            self._state["arp_table"] = self._get_arp_table()
+            try:
+                self._state["arp_table"] = self._get_arp_table()
+            except BaseException as err:
+                message = f"failed to retrieve arp table {err=}, {type(err)=}"
+                _LOGGER.error(message)
         else:
             # queue up the firmaware task
             # task = self._hass.loop.create_task(self._refresh_firmware_update_info())
