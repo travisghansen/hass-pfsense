@@ -127,6 +127,38 @@ restart_service:
       example: "haproxy|dhcp|dpinger|.."
       default: ""
 
+reset_state_table:
+  name: Reset state table
+  description: Force all existing connections to close and reestablish 
+  fields:
+    entity_id:
+      description: pfSense entity id
+      example: "binary_sensor.pfsense_localdomain_pending_notices_present"
+
+kill_states:
+  name: Kill states
+  description: Remove all state table entries for source, or from source to destination
+  fields:
+    entity_id:
+      description: pfSense entity id
+      example: "binary_sensor.pfsense_localdomain_pending_notices_present"
+
+    source:
+      name: Source
+      description: Host or network
+      required: true
+      advanced: false
+      example: "0.0.0.0/0"
+      default: ""
+      
+    destination: 
+      name: Destination
+      description: Host or network (optional)
+      required: false
+      advanced: false
+      example: "192.168.0.1/24"
+      default: ""
+
 system_halt:
   name: Halt system
   description: Halts the system.
