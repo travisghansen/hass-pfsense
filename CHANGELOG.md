@@ -1,3 +1,23 @@
+# v0.5.6
+
+Released 2022-07-11
+
+- ensure `state` data is reset each interval
+
+# v0.5.5
+
+Released 2022-07-09
+
+- fixes to help concurrency with the xmlrpc api
+- more robust handling of devcie tracker entities
+- more robust handling of update entities 
+
+# v0.5.4
+
+Released 2022-07-07
+
+- fixes to help concurrency with the xmlrpc api
+
 # v0.5.3
 
 Released 2022-07-06

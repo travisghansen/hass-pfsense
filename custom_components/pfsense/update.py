@@ -93,7 +93,11 @@ class PfSenseFirmwareUpdatesAvailableUpdate(PfSenseUpdate):
     @property
     def available(self):
         state = self.coordinator.data
-        if state["firmware_update_info"] is None:
+        if (
+            state["firmware_update_info"] is None
+            or dict_get(state, "firmware_update_info.base") is False
+            or dict_get(state, "firmware_update_info.base") is None
+        ):
             return False
 
         return super().available
@@ -133,8 +137,12 @@ class PfSenseFirmwareUpdatesAvailableUpdate(PfSenseUpdate):
     def extra_state_attributes(self):
         state = self.coordinator.data
         attrs = {}
+        info = dict_get(state, "firmware_update_info.base", {})
 
-        for key in dict_get(state, "firmware_update_info.base", {}).keys():
+        if info == False:
+            return attrs
+
+        for key in info.keys():
             attrs[f"pfsense_base_{key}"] = dict_get(
                 state, f"firmware_update_info.base.{key}"
             )
