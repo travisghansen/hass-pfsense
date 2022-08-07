@@ -16,6 +16,8 @@ from .const import (
     SERVICE_SET_DEFAULT_GATEWAY,
     SERVICE_START_SERVICE,
     SERVICE_STOP_SERVICE,
+    SERVICE_RESET_STATE_TABLE,
+    SERVICE_KILL_STATES,
     SERVICE_SYSTEM_HALT,
     SERVICE_SYSTEM_REBOOT,
 )
@@ -105,6 +107,25 @@ class ServiceRegistrar:
                 {
                     vol.Required("service_name"): vol.Any(cv.string),
                     vol.Optional("only_if_running"): cv.boolean,
+                }
+            ),
+            service_func=_async_send_service,
+        )
+
+        self.hass.services.async_register(
+            domain=DOMAIN,
+            service=SERVICE_RESET_STATE_TABLE,
+            schema={},
+            service_func=_async_send_service,
+        )
+        
+        self.hass.services.async_register(
+            domain=DOMAIN,
+            service=SERVICE_KILL_STATES,
+            schema=cv.make_entity_service_schema(
+                {
+                    vol.Required("source"): vol.Any(cv.string),
+                    vol.Optional("destination"): vol.Any(cv.string),
                 }
             ),
             service_func=_async_send_service,
