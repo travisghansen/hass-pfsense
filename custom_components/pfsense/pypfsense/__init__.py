@@ -808,6 +808,52 @@ $toreturn = [
             return None
         return response
 
+    def reset_state_table(self):
+       
+        script = """
+mwexec("/sbin/pfctl -F states");
+"""
+        # no response is expected on success since all connections are closed
+        self._exec_php(script)
+ 
+    def kill_states(self, source, destination=None):
+
+        if (destination is None):
+            script = """
+$data = json_decode('{}', true);
+$source = $data["source"];
+
+mwexec("/sbin/pfctl -k $source");
+
+""".format(
+            json.dumps(
+                {
+                    "source": source,
+                }
+            )
+        )
+            self._exec_php(script)
+            return None
+        
+        else:
+            script = """
+$data = json_decode('{}', true);
+$source = $data["source"];
+$destination = $data["destination"];
+
+mwexec("/sbin/pfctl -k $source -k $destination");
+
+""".format(
+            json.dumps(
+                {
+                    "source": source,
+                    "destination": destination,
+                }
+            )
+        )
+            self._exec_php(script)
+            return None
+
     def system_reboot(self, type="normal"):
         """
         type = normal = simple reboot
