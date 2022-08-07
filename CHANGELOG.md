@@ -1,3 +1,9 @@
+# v0.5.7
+
+Released 2022-08-07
+
+- new services `pfsense.reset_state_table` and `pfsense.kill_states`
+
 # v0.5.6
 
 Released 2022-07-11
