@@ -21,7 +21,8 @@ if (!is_array($config["dhcpd"][$interface])) {
     $config["dhcpd"][$interface] = [];
 }
 
-$config["dhcpd"][$interface]["dnsserver"] = $dns;
+$config["dhcpd"][$interface]["dnsserver"] = [];
+$config["dhcpd"][$interface]["dnsserver"][] = $dns;
 
 write_config("HASS - exec_php: update dhcpd dns server");
 

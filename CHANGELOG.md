@@ -1,3 +1,10 @@
+# v0.5.8
+
+Released 2022-08-16
+
+- properly name the load average entities and remove unit of measure (see #96)
+- explicitly turn host reverse hostname lookups while collecting dhcpd stats (see #98)
+
 # v0.5.7
 
 Released 2022-08-07

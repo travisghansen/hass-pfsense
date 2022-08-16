@@ -647,7 +647,7 @@ $toreturn = [
         )
         self._exec_php(script)
 
-    def get_dhcp_leases(self):
+    def get_dhcp_leases(self, dns_lookups=None):
         # function system_get_dhcpleases()
         # {'lease': [], 'failover': []}
         # {"lease":[{"ip":"<ip>","type":"static","mac":"<mac>","if":"lan","starts":"","ends":"","hostname":"<hostname>","descr":"","act":"static","online":"online","staticmap_array_index":48} ...
@@ -658,10 +658,23 @@ require_once '/etc/inc/util.inc';
 global $xmlrpclockkey;
 unlock($xmlrpclockkey);
 
+$data = json_decode('{}', true);
+
+$dns_lookups = null;
+if ($data["dns_lookups"] === true || $data["dns_lookups"] === false) {{
+  $dns_lookups = $data["dns_lookups"];
+}}
+
 $toreturn = [
-  "data" => system_get_dhcpleases(),
+  "data" => system_get_dhcpleases($dns_lookups),
 ];
-"""
+""".format(
+            json.dumps(
+                {
+                    "dns_lookups": dns_lookups,
+                }
+            )
+        )
         response = self._exec_php(script)
         return response["data"]["lease"]
 
@@ -809,16 +822,16 @@ $toreturn = [
         return response
 
     def reset_state_table(self):
-       
+
         script = """
 mwexec("/sbin/pfctl -F states");
 """
         # no response is expected on success since all connections are closed
         self._exec_php(script)
- 
+
     def kill_states(self, source, destination=None):
 
-        if (destination is None):
+        if destination is None:
             script = """
 $data = json_decode('{}', true);
 $source = $data["source"];
@@ -826,15 +839,15 @@ $source = $data["source"];
 mwexec("/sbin/pfctl -k $source");
 
 """.format(
-            json.dumps(
-                {
-                    "source": source,
-                }
+                json.dumps(
+                    {
+                        "source": source,
+                    }
+                )
             )
-        )
             self._exec_php(script)
             return None
-        
+
         else:
             script = """
 $data = json_decode('{}', true);
@@ -844,13 +857,13 @@ $destination = $data["destination"];
 mwexec("/sbin/pfctl -k $source -k $destination");
 
 """.format(
-            json.dumps(
-                {
-                    "source": source,
-                    "destination": destination,
-                }
+                json.dumps(
+                    {
+                        "source": source,
+                        "destination": destination,
+                    }
+                )
             )
-        )
             self._exec_php(script)
             return None
 
@@ -964,6 +977,7 @@ require_once '/etc/inc/system.inc';
 require_once '/etc/inc/util.inc';
 require_once 'interfaces.inc';
 require_once '/etc/inc/openvpn.inc';
+require_once '/etc/inc/ipsec.inc';
 
 global $config;
 global $g;
@@ -995,9 +1009,9 @@ $cpu_usage = cpu_usage();
 // 1112|111
 $cpu_usage_parts = explode("|", $cpu_usage);
 
-$cpu_load_average = get_load_average();
+$system_load_average = get_load_average();
 // 0.23, 0.22, 0.21
-$cpu_load_average_parts = explode(",", $cpu_load_average);
+$system_load_average_parts = explode(",", $system_load_average);
 
 $cpu_frequency = get_cpufreq();
 // Current: 800 MHz, Max: 3700 MHz
@@ -1036,6 +1050,11 @@ $toreturn = [
     "boottime" => $boottime,
     "uptime" => (int) get_uptime_sec(),
     "temp" => floatval(get_temp()),
+    "load_average" => [
+        "one_minute" => floatval(trim($system_load_average_parts[0])),
+        "five_minute" => floatval(trim($system_load_average_parts[1])),
+        "fifteen_minute" => floatval(trim($system_load_average_parts[2])),
+    ],
   ],
 
   "cpu" => [
@@ -1049,11 +1068,6 @@ $toreturn = [
         "total" => (int) $cpu_usage_parts[0],
         "idle" => (int) $cpu_usage_parts[1],
     ],
-    "load_average" => [
-        "one_minute" => floatval(trim($cpu_load_average_parts[0])),
-        "five_minute" => floatval(trim($cpu_load_average_parts[1])),
-        "fifteen_minute" => floatval(trim($cpu_load_average_parts[2])),
-    ],
   ],
 
   "filesystems" => $filesystems,
@@ -1062,8 +1076,9 @@ $toreturn = [
 
   "openvpn" => [],
 
-  "gateways" => return_gateways_status(true),
+  "ipsec" => [],
 
+  "gateways" => return_gateways_status(true),
 ];
 
 foreach($filesystems as $fs) {
@@ -1099,7 +1114,6 @@ foreach ($ovpn_servers as $server) {
   $toreturn["openvpn"]["servers"][$vpnid]["total_bytes_recv"] = $total_bytes_recv;
   $toreturn["openvpn"]["servers"][$vpnid]["total_bytes_sent"] = $total_bytes_sent;
 }
-
 """
         data = self._exec_php(script)
 

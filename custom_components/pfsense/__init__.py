@@ -285,7 +285,7 @@ class PfSenseData:
 
     @_log_timing
     def _get_dhcp_leases(self):
-        return self._client.get_dhcp_leases()
+        return self._client.get_dhcp_leases(False)
 
     @_log_timing
     def _are_notices_pending(self):
@@ -645,7 +645,7 @@ class PfSenseEntity(CoordinatorEntity, RestoreEntity):
     def service_reset_state_table(self):
         client = self._get_pfsense_client()
         client.reset_state_table()
-    
+
     def service_kill_states(self, source: str, destination: str = None):
         client = self._get_pfsense_client()
         client.kill_states(source, destination)
