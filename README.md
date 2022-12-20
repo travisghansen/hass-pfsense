@@ -30,7 +30,7 @@ Simply go to `Configuration -> Integrations -> Add Integration` and search for
 
 - `System -> Advanced -> Max Processes` - set it 5 or more.
 - If using a non `admin` user account ensure the user has the
-  `System - HA node sync` privilege. Note that this privilege effectively gives
+  `System - HA node sync` and the `WebCfg - All pages` privilege. Note that this privileges effectively gives
   the user complete access to the system via the `xmlrpc` feature.
 
 ## config
