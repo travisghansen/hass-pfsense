@@ -261,6 +261,19 @@ async def async_setup_entry(
                 )
                 entities.append(entity)
 
+        # default gw
+        entity = PfSenseDefaultGWSensor(
+            config_entry,
+            coordinator,
+            SensorEntityDescription(
+                key="defaultgw",
+                name="Default Gateway",
+                icon="mdi:network-outline",
+            ),
+            True,
+        )
+        entities.append(entity)
+
         # openvpn servers
         for vpnid in dict_get(state, "telemetry.openvpn.servers", {}).keys():
             servers = dict_get(state, "telemetry.openvpn.servers", {})
@@ -616,6 +629,20 @@ class PfSenseGatewaySensor(PfSenseSensor):
                 value = re.sub("[^0-9\.]*", "", value)
 
             return value
+        except KeyError:
+            return STATE_UNKNOWN
+
+
+class PfSenseDefaultGWSensor(PfSenseSensor):
+    @property
+    def native_value(self):
+        state = self.coordinator.data
+
+        if state["defaultgw"] is None:
+            return STATE_UNKNOWN
+
+        try:
+            return state["defaultgw"]
         except KeyError:
             return STATE_UNKNOWN
 

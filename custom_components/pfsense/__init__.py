@@ -272,6 +272,10 @@ class PfSenseData:
         return self._client.get_interfaces()
 
     @_log_timing
+    def _get_defaultgw(self):
+        return self._client.get_defaultgw()
+
+    @_log_timing
     def _get_services(self):
         return self._client.get_services()
 
@@ -323,7 +327,7 @@ class PfSenseData:
                 message = f"failed to retrieve arp table {err=}, {type(err)=}"
                 _LOGGER.error(message)
         else:
-            # queue up the firmaware task
+            # queue up the firmware task
             # task = self._hass.loop.create_task(self._refresh_firmware_update_info())
             # self._background_tasks.add(task)
             # task.add_done_callback(self._background_tasks.discard)
@@ -333,6 +337,7 @@ class PfSenseData:
             self._state["telemetry"] = self._get_telemetry()
             self._state["config"] = self._get_config()
             self._state["interfaces"] = self._get_interfaces()
+            self._state["defaultgw"] = self._get_defaultgw()
             self._state["services"] = self._get_services()
             self._state["carp_interfaces"] = self._get_carp_interfaces()
             self._state["carp_status"] = self._get_carp_status()

@@ -370,6 +370,13 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    def get_defaultgw(self):
+        gateways = self.get_gateways()
+        for g in gateways.keys():
+            if 'isdefaultgw' in gateways[g] and gateways[g]['isdefaultgw'] == True:
+                return gateways[g]['name']
+        return None
+
     def get_gateway(self, gateway):
         gateways = self.get_gateways()
         for g in gateways.keys():
