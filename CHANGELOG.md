@@ -1,3 +1,9 @@
+# v0.5.9
+
+Released 2023-01-20
+
+- more robust rule checking for nat enable/disable
+
 # v0.5.8
 
 Released 2022-08-16

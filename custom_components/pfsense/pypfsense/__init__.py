@@ -4,6 +4,7 @@ likely via some sort of mutex.
 """
 
 import json
+import re
 import socket
 import ssl
 from urllib.parse import quote_plus, urlparse
@@ -12,6 +13,20 @@ import xmlrpc.client
 
 # value to set as the socket timeout
 DEFAULT_TIMEOUT = 10
+
+
+def dict_get(data: dict, path: str, default=None):
+    pathList = re.split(r"\.", path, flags=re.IGNORECASE)
+    result = data
+    for key in pathList:
+        try:
+            key = int(key) if key.isnumeric() else key
+            result = result[key]
+        except:
+            result = default
+            break
+
+    return result
 
 
 class Client(object):
@@ -298,8 +313,11 @@ $toreturn = [
     # use created_time as a unique_id since none other exists
     def enable_nat_port_forward_rule_by_created_time(self, created_time):
         config = self.get_config()
+        if created_time is None:
+            return
+
         for rule in config["nat"]["rule"]:
-            if rule["created"]["time"] != created_time:
+            if dict_get(rule, "created.time") != created_time:
                 continue
 
             if "disabled" in rule.keys():
@@ -309,8 +327,11 @@ $toreturn = [
     # use created_time as a unique_id since none other exists
     def disable_nat_port_forward_rule_by_created_time(self, created_time):
         config = self.get_config()
+        if created_time is None:
+            return
+
         for rule in config["nat"]["rule"]:
-            if rule["created"]["time"] != created_time:
+            if dict_get(rule, "created.time") != created_time:
                 continue
 
             if "disabled" not in rule.keys():
@@ -320,8 +341,11 @@ $toreturn = [
     # use created_time as a unique_id since none other exists
     def enable_nat_outbound_rule_by_created_time(self, created_time):
         config = self.get_config()
+        if created_time is None:
+            return
+
         for rule in config["nat"]["outbound"]["rule"]:
-            if rule["created"]["time"] != created_time:
+            if dict_get(rule, "created.time") != created_time:
                 continue
 
             if "disabled" in rule.keys():
@@ -331,8 +355,11 @@ $toreturn = [
     # use created_time as a unique_id since none other exists
     def disable_nat_outbound_rule_by_created_time(self, created_time):
         config = self.get_config()
+        if created_time is None:
+            return
+
         for rule in config["nat"]["outbound"]["rule"]:
-            if rule["created"]["time"] != created_time:
+            if dict_get(rule, "created.time") != created_time:
                 continue
 
             if "disabled" not in rule.keys():
