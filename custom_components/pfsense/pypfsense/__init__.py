@@ -716,8 +716,10 @@ unlock($xmlrpclockkey);
 global $config;
 
 $vips = [];
-foreach ($config['virtualip']['vip'] as $vip) {
-  $vips[] = $vip;
+if ($config['virtualip'] && is_iterable($config['virtualip']['vip'])) {
+  foreach ($config['virtualip']['vip'] as $vip) {
+    $vips[] = $vip;
+  }
 }
 
 $toreturn = [
@@ -782,11 +784,13 @@ unlock($xmlrpclockkey);
 global $config;
 
 $vips = [];
-foreach ($config['virtualip']['vip'] as $vip) {
-  if ($vip["mode"] != "carp") {
-    continue;
+if ($config['virtualip'] && is_iterable($config['virtualip']['vip'])) {
+  foreach ($config['virtualip']['vip'] as $vip) {
+    if ($vip["mode"] != "carp") {
+      continue;
+    }
+    $vips[] = $vip;
   }
-  $vips[] = $vip;
 }
 
 foreach ($vips as &$vip) {
