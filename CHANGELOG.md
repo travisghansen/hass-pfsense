@@ -1,3 +1,9 @@
+# v0.5.11
+
+Released 2023-01-23
+
+- log api errors in hass friendly way
+
 # v0.5.10
 
 Released 2023-01-22
