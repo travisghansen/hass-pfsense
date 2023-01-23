@@ -4,6 +4,7 @@ likely via some sort of mutex.
 """
 
 import json
+import logging
 import re
 import socket
 import ssl
@@ -13,6 +14,8 @@ import xmlrpc.client
 
 # value to set as the socket timeout
 DEFAULT_TIMEOUT = 10
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def dict_get(data: dict, path: str, default=None):
@@ -79,6 +82,16 @@ class Client(object):
             finally:
                 socket.setdefaulttimeout(default_timeout)
             return response
+
+        return inner
+
+    def _log_errors(func):
+        def inner(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except BaseException as err:
+                _LOGGER.error(f"Unexpected {func.__name__} error {err=}, {type(err)=}")
+                raise err
 
         return inner
 
@@ -150,9 +163,11 @@ $toreturn = [
         return response["data"]
 
     @_apply_timeout
+    @_log_errors
     def get_host_firmware_version(self):
         return self._get_proxy().pfsense.host_firmware_version(1, 60)
 
+    @_log_errors
     def get_firmware_update_info(self):
         """
         # the cache is 2 hours
@@ -181,6 +196,7 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def upgrade_firmware(self):
         script = """
 $ret = mwexec_bg("pfSense-upgrade -y -l /tmp/hass-upgrade.log -p /tmp/hass-upgrade.sock");
@@ -191,6 +207,7 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def pid_is_running(self, pid):
         script = """
 $data = json_decode('{}', true);
@@ -209,6 +226,7 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def get_system_serial(self):
         script = """
 // release the mutex immediately so other api calls can go through
@@ -224,6 +242,7 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def get_netgate_device_id(self):
         script = """
 $toreturn = [
@@ -233,6 +252,7 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def get_system_info(self):
         # TODO: add bios details here
         script = """
@@ -255,6 +275,7 @@ $toreturn = [
         response = self._exec_php(script)
         return response
 
+    @_log_errors
     def get_config(self):
         script = """
 // release the mutex immediately so other api calls can go through
@@ -272,19 +293,23 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def get_interfaces(self):
         return self._get_config_section("interfaces")
 
+    @_log_errors
     def get_interface(self, interface):
         interfaces = self.get_interfaces()
         return interfaces[interface]
 
+    @_log_errors
     def get_interface_by_description(self, interface):
         interfaces = self.get_interfaces()
         for i, i_interface in enumerate(interfaces.keys()):
             if interfaces[i_interface]["descr"] == interface:
                 return interfaces[i_interface]
 
+    @_log_errors
     def enable_filter_rule_by_tracker(self, tracker):
         config = self.get_config()
         for rule in config["filter"]["rule"]:
@@ -297,6 +322,7 @@ $toreturn = [
                 del rule["disabled"]
                 self._restore_config_section("filter", config["filter"])
 
+    @_log_errors
     def disable_filter_rule_by_tracker(self, tracker):
         config = self.get_config()
 
@@ -311,6 +337,7 @@ $toreturn = [
                 self._restore_config_section("filter", config["filter"])
 
     # use created_time as a unique_id since none other exists
+    @_log_errors
     def enable_nat_port_forward_rule_by_created_time(self, created_time):
         config = self.get_config()
         if created_time is None:
@@ -325,6 +352,7 @@ $toreturn = [
                 self._restore_config_section("nat", config["nat"])
 
     # use created_time as a unique_id since none other exists
+    @_log_errors
     def disable_nat_port_forward_rule_by_created_time(self, created_time):
         config = self.get_config()
         if created_time is None:
@@ -339,6 +367,7 @@ $toreturn = [
                 self._restore_config_section("nat", config["nat"])
 
     # use created_time as a unique_id since none other exists
+    @_log_errors
     def enable_nat_outbound_rule_by_created_time(self, created_time):
         config = self.get_config()
         if created_time is None:
@@ -353,6 +382,7 @@ $toreturn = [
                 self._restore_config_section("nat", config["nat"])
 
     # use created_time as a unique_id since none other exists
+    @_log_errors
     def disable_nat_outbound_rule_by_created_time(self, created_time):
         config = self.get_config()
         if created_time is None:
@@ -366,6 +396,7 @@ $toreturn = [
                 rule["disabled"] = ""
                 self._restore_config_section("nat", config["nat"])
 
+    @_log_errors
     def get_configured_interface_descriptions(self):
         script = """
 // release the mutex immediately so other api calls can go through
@@ -381,6 +412,7 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def get_gateways(self):
         # {'GW_WAN': {'interface': '<if>', 'gateway': '<ip>', 'name': 'GW_WAN', 'weight': '1', 'ipprotocol': 'inet', 'interval': '', 'descr': 'Interface wan Gateway', 'monitor': '<ip>', 'friendlyiface': 'wan', 'friendlyifdescr': 'WAN', 'isdefaultgw': True, 'attribute': 0, 'tiername': 'Default (IPv4)'}}
         script = """
@@ -397,12 +429,14 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def get_gateway(self, gateway):
         gateways = self.get_gateways()
         for g in gateways.keys():
             if g == gateway:
                 return gateways[g]
 
+    @_log_errors
     def get_gateways_status(self):
         # {'GW_WAN': {'monitorip': '<ip>', 'srcip': '<ip>', 'name': 'GW_WAN', 'delay': '0.387ms', 'stddev': '0.097ms', 'loss': '0.0%', 'status': 'online', 'substatus': 'none'}}
         script = """
@@ -420,12 +454,14 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def get_gateway_status(self, gateway):
         gateways = self.get_gateways_status()
         for g in gateways.keys():
             if g == gateway:
                 return gateways[g]
 
+    @_log_errors
     def get_arp_table(self, resolve_hostnames=False):
         # [{'hostname': '?', 'ip-address': '<ip>', 'mac-address': '<mac>', 'interface': 'em0', 'expires': 1199, 'type': 'ethernet'}, ...]
         script = """
@@ -450,6 +486,7 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def set_default_gateway(self, gateway, ip_version="4"):
         ipVersion = str(ip_version)
         key = "defaultgw4"
@@ -492,6 +529,7 @@ $toreturn = [
 
         self._exec_php(script)
 
+    @_log_errors
     def get_services(self):
         # function get_services()
         # ["",{"name":"nut","rcfile":"nut.sh","executable":"upsmon","description":"UPS monitoring daemon"},{"name":"iperf","executable":"iperf3","description":"iperf Network Performance Testing Daemon/Client","stopcmd":"mwexec(\"/usr/bin/killall iperf3\");"},{"name":"telegraf","rcfile":"telegraf.sh","executable":"telegraf","description":"Telegraf daemon"},{"name":"vnstatd","rcfile":"vnstatd.sh","executable":"vnstatd","description":"Status Traffic Totals data collection daemon"},{"name":"wireguard","rcfile":"wireguardd","executable":"php_wg","description":"WireGuard"},{"name":"FRR zebra","rcfile":"frr.sh","executable":"zebra","description":"FRR core/abstraction daemon"},{"name":"FRR staticd","rcfile":"frr.sh","executable":"staticd","description":"FRR static route daemon"},{"name":"FRR bfdd","rcfile":"frr.sh","executable":"bfdd","description":"FRR BFD daemon"},{"name":"FRR bgpd","rcfile":"frr.sh","executable":"bgpd","description":"FRR BGP routing daemon"},{"name":"FRR ospfd","rcfile":"frr.sh","executable":"ospfd","description":"FRR OSPF routing daemon"},{"name":"FRR ospf6d","rcfile":"frr.sh","executable":"ospf6d","description":"FRR OSPF6 routing daemon"},{"name":"FRR watchfrr","rcfile":"frr.sh","executable":"watchfrr","description":"FRR watchfrr watchdog daemon"},{"name":"haproxy","rcfile":"haproxy.sh","executable":"haproxy","description":"TCP/HTTP(S) Load Balancer"},{"name":"unbound","description":"DNS Resolver","enabled":true,"status":true},{"name":"pcscd","description":"PC/SC Smart Card Daemon","enabled":true,"status":true},{"name":"ntpd","description":"NTP clock sync","enabled":true,"status":true},{"name":"syslogd","description":"System Logger Daemon","enabled":true,"status":true},{"name":"dhcpd","description":"DHCP Service","enabled":true,"status":true},{"name":"dpinger","description":"Gateway Monitoring Daemon","enabled":true,"status":true},{"name":"miniupnpd","description":"UPnP Service","enabled":true,"status":true},{"name":"ipsec","description":"IPsec VPN","enabled":true,"status":true},{"name":"sshd","description":"Secure Shell Daemon","enabled":true,"status":true},{"name":"openvpn","mode":"server","id":0,"vpnid":"1","description":"OpenVPN server: primary vpn","enabled":true,"status":true}]
@@ -528,6 +566,7 @@ $toreturn = [
 
         return response["data"]
 
+    @_log_errors
     def get_service_is_enabled(self, service_name):
         # function is_service_enabled($service_name)
         script = """
@@ -555,6 +594,7 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def get_service_is_running(self, service_name):
         # function is_service_running($service, $ps = "")
         script = """
@@ -581,6 +621,7 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def start_service(self, service_name):
         # function start_service($name, $after_sync = false)
         script = """
@@ -605,6 +646,7 @@ $toreturn = [
         )
         self._exec_php(script)
 
+    @_log_errors
     def stop_service(self, service_name):
         # function stop_service($name)
         script = """
@@ -629,6 +671,7 @@ $toreturn = [
         )
         self._exec_php(script)
 
+    @_log_errors
     def restart_service(self, service_name):
         # function restart_service($name) (if service is not currently running, it will be started)
         script = """
@@ -650,6 +693,7 @@ $toreturn = [
         )
         self._exec_php(script)
 
+    @_log_errors
     def restart_service_if_running(self, service_name):
         # function restart_service_if_running($service)
         script = """
@@ -674,6 +718,7 @@ $toreturn = [
         )
         self._exec_php(script)
 
+    @_log_errors
     def get_dhcp_leases(self, dns_lookups=None):
         # function system_get_dhcpleases()
         # {'lease': [], 'failover': []}
@@ -705,6 +750,7 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]["lease"]
 
+    @_log_errors
     def get_virtual_ips(self):
         script = """
 // release the mutex immediately so other api calls can go through
@@ -729,6 +775,7 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def get_carp_status(self):
         # carp enabled or not
         # readonly attribute, cannot be set directly
@@ -747,6 +794,7 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def get_carp_interface_status(self, uniqueid):
         # function get_carp_interface_status($carpid)
         script = """
@@ -773,6 +821,7 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def get_carp_interfaces(self):
         script = """
 // release the mutex immediately so other api calls can go through
@@ -805,6 +854,7 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def delete_arp_entry(self, ip):
         if len(ip) < 1:
             return
@@ -824,6 +874,7 @@ $toreturn = [
         )
         self._exec_php(script)
 
+    @_log_errors
     def arp_get_mac_by_ip(self, ip, do_ping=True):
         """function arp_get_mac_by_ip($ip, $do_ping = true)"""
         script = """
@@ -852,6 +903,7 @@ $toreturn = [
             return None
         return response
 
+    @_log_errors
     def reset_state_table(self):
 
         script = """
@@ -860,6 +912,7 @@ mwexec("/sbin/pfctl -F states");
         # no response is expected on success since all connections are closed
         self._exec_php(script)
 
+    @_log_errors
     def kill_states(self, source, destination=None):
 
         if destination is None:
@@ -898,6 +951,7 @@ mwexec("/sbin/pfctl -k $source -k $destination");
             self._exec_php(script)
             return None
 
+    @_log_errors
     def system_reboot(self, type="normal"):
         """
         type = normal = simple reboot
@@ -942,6 +996,7 @@ $toreturn = [
             # ignore response failures because the system is going down
             pass
 
+    @_log_errors
     def system_halt(self):
         script = """
 system_halt();
@@ -955,6 +1010,7 @@ $toreturn = [
             # ignore response failures because the system is going down
             pass
 
+    @_log_errors
     def send_wol(self, interface, mac):
         """
         interface should be wan, lan, opt1, opt2 etc, not the description
@@ -993,6 +1049,7 @@ $toreturn = [
     # TODO: function find_service_by_name($name)
     # TODO: function get_service_status($service) # seems to be higher-level logic than is_service_running, passes in the full service object
 
+    @_log_errors
     def get_telemetry(self):
         script = """
 // release the mutex immediately so other api calls can go through
@@ -1156,6 +1213,7 @@ foreach ($ovpn_servers as $server) {
 
         return data
 
+    @_log_errors
     def are_notices_pending(self, category="all"):
         """
         are_notices_pending($category = "all")
@@ -1184,6 +1242,7 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def get_notices(self, category="all"):
         script = """
 // release the mutex immediately so other api calls can go through
@@ -1222,6 +1281,7 @@ $toreturn = [
 
         return notices
 
+    @_log_errors
     def file_notice(
         self, id, notice, category="General", url="", priority=1, local_only=False
     ):
@@ -1267,6 +1327,7 @@ $toreturn = [
         response = self._exec_php(script)
         return response["data"]
 
+    @_log_errors
     def close_notice(self, id):
         """
         id = "all" to wipe everything
