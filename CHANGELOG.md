@@ -1,3 +1,9 @@
+# v0.5.13
+
+Released 2023-01-29
+
+- ensure proper data type
+
 # v0.5.12
 
 Released 2023-01-29
