@@ -1,3 +1,9 @@
+# v0.5.15
+
+Released 2023-01-29
+
+- better unavailable logic
+
 # v0.5.14
 
 Released 2023-01-29
