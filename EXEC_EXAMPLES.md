@@ -95,6 +95,46 @@ $toreturn = [
 ];
 ```
 
+## release / renew dhcp address on an interface
+
+```
+require_once '/etc/inc/interfaces.inc';
+
+$if = "igb0";
+$interface = "wan";
+$ifdescr = "WAN";
+$ipv = 4;
+$sleep = 1;
+    
+// Copied from: /usr/local/www/status_interfaces.php
+// Relinquish the DHCP lease from the server.
+// $if is physical interface: ie: igb0
+// $ifdescr is WAN, LAN, etc
+// $ipv is '4' or '6'
+function dhcp_relinquish_lease($if, $ifdescr, $ipv) {
+        $leases_db = '/var/db/dhclient.leases.' . $if;
+        $conf_file = '/var/etc/dhclient_'.$ifdescr.'.conf';
+        $script_file = '/usr/local/sbin/pfSense-dhclient-script';
+        $ipv = ((int) $ipv == 6) ? '-6' : '-4';
+
+        if (file_exists($leases_db) && file_exists($script_file)) {
+                mwexec('/usr/local/sbin/dhclient {$ipv} -d -r' .
+                        ' -lf ' . escapeshellarg($leases_db) .
+                        ' -cf ' . escapeshellarg($conf_file) .
+                        ' -sf ' . escapeshellarg($script_file));
+        }
+}
+
+dhcp_relinquish_lease($if, $ifdescr, $ipv);
+interface_bring_down($interface);
+sleep($sleep);
+interface_configure($interface);
+
+$toreturn = [
+    "data" => true,
+];
+```
+
 # command
 
 ## flush state table

@@ -1,3 +1,9 @@
+# v0.5.16
+
+Released 2023-01-30
+
+- update deprecated syntax
+
 # v0.5.15
 
 Released 2023-01-29
