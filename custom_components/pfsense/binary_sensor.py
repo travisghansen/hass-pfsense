@@ -2,8 +2,7 @@
 import logging
 
 from homeassistant.components.binary_sensor import (
-    DEVICE_CLASS_PROBLEM,
-    DEVICE_CLASS_UPDATE,
+    BinarySensorDeviceClass,
     BinarySensorEntity,
     BinarySensorEntityDescription,
 )
@@ -126,7 +125,7 @@ class PfSensePendingNoticesPresentBinarySensor(PfSenseBinarySensor):
 
     @property
     def device_class(self):
-        return DEVICE_CLASS_PROBLEM
+        return BinarySensorDeviceClass.PROBLEM
 
     @property
     def extra_state_attributes(self):
