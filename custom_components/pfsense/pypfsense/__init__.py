@@ -32,6 +32,23 @@ def dict_get(data: dict, path: str, default=None):
     return result
 
 
+def normalize_service_data(service):
+    service_data_type = type(service).__name__
+    if service_data_type == "dict":
+        pass
+    elif service_data_type == "NoneType":
+        service = {}
+    elif service_data_type == "str":
+        if len(service) > 0:
+            service = json.loads(service)
+        else:
+            service = {}
+    else:
+        raise TypeError("invalid datatype for variable `service`: " + service_data_type)
+
+    return service
+
+
 class Client(object):
     """pfSense Client"""
 
@@ -562,12 +579,16 @@ $toreturn = [
 
         for service in response["data"]:
             if "status" not in service:
-                service["status"] = self.get_service_is_running(service["name"])
+                service["status"] = self.get_service_is_running(
+                    service["name"], service
+                )
 
         return response["data"]
 
     @_log_errors
-    def get_service_is_enabled(self, service_name):
+    def get_service_is_enabled(self, service_name, service={}):
+        service = normalize_service_data(service)
+
         # function is_service_enabled($service_name)
         script = """
 // release the mutex immediately so other api calls can go through
@@ -588,6 +609,7 @@ $toreturn = [
             json.dumps(
                 {
                     "service_name": service_name,
+                    "service": service,
                 }
             )
         )
@@ -595,7 +617,9 @@ $toreturn = [
         return response["data"]
 
     @_log_errors
-    def get_service_is_running(self, service_name):
+    def get_service_is_running(self, service_name, service={}):
+        service = normalize_service_data(service)
+
         # function is_service_running($service, $ps = "")
         script = """
 // release the mutex immediately so other api calls can go through
@@ -608,13 +632,38 @@ require_once '/etc/inc/service-utils.inc';
 
 $data = json_decode('{}', true);
 $service_name = $data["service_name"];
-$toreturn = [
-  "data" => (bool) is_service_running($service_name),
-];
+$service = $data["service"];
+if (!$service) {{
+  $service = [];
+}}
+
+if ($service_name == "openvpn" && $service) {{
+  if (!$service["name"]) {{
+    $service["name"] = $service_name;
+  }}
+  if (!$service["vpnmode"] && $service["mode"]) {{
+    $service["vpnmode"] = $service["mode"];
+  }}
+  if (!$service["mode"] && $service["vpnmode"]) {{
+    $service["mode"] = $service["vpnmode"];
+  }}
+  $service["id"] = $service["vpnid"];
+  $toreturn = [
+    // requires mode and vpnid
+    "data" => (bool) get_service_status($service),
+  ];
+}}
+else {{
+  $toreturn = [
+    "data" => (bool) is_service_running($service_name),
+  ];
+}}
+
 """.format(
             json.dumps(
                 {
                     "service_name": service_name,
+                    "service": service,
                 }
             )
         )
@@ -622,17 +671,42 @@ $toreturn = [
         return response["data"]
 
     @_log_errors
-    def start_service(self, service_name):
+    def start_service(self, service_name, service={}):
+        service = normalize_service_data(service)
+
         # function start_service($name, $after_sync = false)
         script = """
 require_once '/etc/inc/service-utils.inc';
 
 $data = json_decode('{}', true);
 $service_name = $data["service_name"];
-$is_running = is_service_running($service_name);
-if (!$is_running) {{
-  service_control_start($service_name, []);
+$service = $data["service"];
+if (!$service) {{
+  $service = [];
 }}
+
+if ($service_name == "openvpn" && $service) {{
+  // requires name, mode and vpnid
+  if (!$service["name"]) {{
+    $service["name"] = $service_name;
+  }}
+  if (!$service["vpnmode"] && $service["mode"]) {{
+    $service["vpnmode"] = $service["mode"];
+  }}
+  if (!$service["mode"] && $service["vpnmode"]) {{
+    $service["mode"] = $service["vpnmode"];
+  }}
+  $service["id"] = $service["vpnid"];
+  $is_running = (bool) get_service_status($service);
+}}
+else {{
+  $is_running = is_service_running($service_name);
+}}
+
+if (!$is_running) {{
+  service_control_start($service_name, $service);
+}}
+
 $toreturn = [
   // no return value
   "data" => true,
@@ -641,22 +715,47 @@ $toreturn = [
             json.dumps(
                 {
                     "service_name": service_name,
+                    "service": service,
                 }
             )
         )
         self._exec_php(script)
 
     @_log_errors
-    def stop_service(self, service_name):
+    def stop_service(self, service_name, service={}):
+        service = normalize_service_data(service)
+
         # function stop_service($name)
         script = """
 require_once '/etc/inc/service-utils.inc';
 
 $data = json_decode('{}', true);
 $service_name = $data["service_name"];
-$is_running = is_service_running($service_name);
+$service = $data["service"];
+if (!$service) {{
+  $service = [];
+}}
+
+if ($service_name == "openvpn" && $service) {{
+  // requires name, mode, and vpnid
+  if (!$service["name"]) {{
+    $service["name"] = $service_name;
+  }}
+  if (!$service["vpnmode"] && $service["mode"]) {{
+    $service["vpnmode"] = $service["mode"];
+  }}
+  if (!$service["mode"] && $service["vpnmode"]) {{
+    $service["mode"] = $service["vpnmode"];
+  }}
+  $service["id"] = $service["vpnid"];
+  $is_running = (bool) get_service_status($service);
+}}
+else {{
+  $is_running = is_service_running($service_name);
+}}
+
 if ($is_running) {{
-  service_control_stop($service_name, []);
+  service_control_stop($service_name, $service);
 }}
 $toreturn = [
   // no return value
@@ -666,20 +765,42 @@ $toreturn = [
             json.dumps(
                 {
                     "service_name": service_name,
+                    "service": service,
                 }
             )
         )
         self._exec_php(script)
 
     @_log_errors
-    def restart_service(self, service_name):
+    def restart_service(self, service_name, service={}):
+        service = normalize_service_data(service)
+
         # function restart_service($name) (if service is not currently running, it will be started)
         script = """
 require_once '/etc/inc/service-utils.inc';
 
 $data = json_decode('{}', true);
 $service_name = $data["service_name"];
-service_control_restart($service_name, []);
+$service = $data["service"];
+if (!$service) {{
+  $service = [];
+}}
+
+if ($service_name == "openvpn" && $service) {{
+  // requires name, mode, and vpnid
+  if (!$service["name"]) {{
+    $service["name"] = $service_name;
+  }}
+  if (!$service["vpnmode"] && $service["mode"]) {{
+    $service["vpnmode"] = $service["mode"];
+  }}
+  if (!$service["mode"] && $service["vpnmode"]) {{
+    $service["mode"] = $service["vpnmode"];
+  }}
+  $service["id"] = $service["vpnid"];
+}}
+
+service_control_restart($service_name, $service);
 $toreturn = [
   // no return value
   "data" => true,
@@ -688,22 +809,47 @@ $toreturn = [
             json.dumps(
                 {
                     "service_name": service_name,
+                    "service": service,
                 }
             )
         )
         self._exec_php(script)
 
     @_log_errors
-    def restart_service_if_running(self, service_name):
+    def restart_service_if_running(self, service_name, service={}):
+        service = normalize_service_data(service)
+
         # function restart_service_if_running($service)
         script = """
 require_once '/etc/inc/service-utils.inc';
 
 $data = json_decode('{}', true);
 $service_name = $data["service_name"];
-$is_running = is_service_running($service_name);
+$service = $data["service"];
+if (!$service) {{
+  $service = [];
+}}
+
+if ($service_name == "openvpn" && $service) {{
+  // requires name, mode, and vpnid
+  if (!$service["name"]) {{
+    $service["name"] = $service_name;
+  }}
+  if (!$service["vpnmode"] && $service["mode"]) {{
+    $service["vpnmode"] = $service["mode"];
+  }}
+  if (!$service["mode"] && $service["vpnmode"]) {{
+    $service["mode"] = $service["vpnmode"];
+  }}
+  $service["id"] = $service["vpnid"];
+  $is_running = (bool) get_service_status($service);
+}}
+else {{
+  $is_running = is_service_running($service_name);
+}}
+
 if ($is_running) {{
-  service_control_restart($service_name, []);
+  service_control_restart($service_name, $service);
 }}
 $toreturn = [
   // no return value
@@ -713,6 +859,7 @@ $toreturn = [
             json.dumps(
                 {
                     "service_name": service_name,
+                    "service": service,
                 }
             )
         )

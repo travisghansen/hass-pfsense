@@ -84,6 +84,7 @@ class ServiceRegistrar:
             schema=cv.make_entity_service_schema(
                 {
                     vol.Required("service_name"): vol.Any(cv.string),
+                    vol.Optional("service"): vol.Any(cv.string),
                 }
             ),
             service_func=_async_send_service,
@@ -95,6 +96,7 @@ class ServiceRegistrar:
             schema=cv.make_entity_service_schema(
                 {
                     vol.Required("service_name"): vol.Any(cv.string),
+                    vol.Optional("service"): vol.Any(cv.string),
                 }
             ),
             service_func=_async_send_service,
@@ -106,7 +108,10 @@ class ServiceRegistrar:
             schema=cv.make_entity_service_schema(
                 {
                     vol.Required("service_name"): vol.Any(cv.string),
-                    vol.Optional("only_if_running"): cv.boolean,
+                    vol.Optional("only_if_running"): vol.Any(
+                        cv.positive_int, cv.string, cv.boolean
+                    ),
+                    vol.Optional("service"): vol.Any(cv.string),
                 }
             ),
             service_func=_async_send_service,

@@ -301,219 +301,236 @@ class PfSenseData:
 
     def update(self, opts={}):
         """Fetch the latest state from pfSense."""
-        current_time = time.time()
+        new_state = {}
 
-        # copy the old data to have around
-        previous_state = copy.deepcopy(self._state)
-        if "previous_state" in previous_state.keys():
-            del previous_state["previous_state"]
+        try:
+            current_time = time.time()
 
-        # ensure clean state each interval
-        self._state = {}
-        self._state["update_time"] = current_time
-        self._state["previous_state"] = previous_state
+            # copy the old data to have around
+            previous_state = copy.deepcopy(self._state)
+            if "previous_state" in previous_state.keys():
+                del previous_state["previous_state"]
 
-        self._state["system_info"] = self._get_system_info()
-        self._state["host_firmware_version"] = self._get_host_firmware_version()
+            # ensure clean state each interval
 
-        if "scope" in opts.keys() and opts["scope"] == "device_tracker":
-            try:
-                self._state["arp_table"] = self._get_arp_table()
-            except BaseException as err:
-                message = f"failed to retrieve arp table {err=}, {type(err)=}"
-                _LOGGER.error(message)
-        else:
-            # queue up the firmaware task
-            # task = self._hass.loop.create_task(self._refresh_firmware_update_info())
-            # self._background_tasks.add(task)
-            # task.add_done_callback(self._background_tasks.discard)
-            self._hass.add_job(self._refresh_firmware_update_info)
+            new_state["update_time"] = current_time
+            new_state["previous_state"] = previous_state
 
-            self._state["firmware_update_info"] = self._get_firmware_update_info()
-            self._state["telemetry"] = self._get_telemetry()
-            self._state["config"] = self._get_config()
-            self._state["interfaces"] = self._get_interfaces()
-            self._state["services"] = self._get_services()
-            self._state["carp_interfaces"] = self._get_carp_interfaces()
-            self._state["carp_status"] = self._get_carp_status()
-            self._state["dhcp_leases"] = self._get_dhcp_leases()
-            self._state["dhcp_stats"] = {}
-            self._state["notices"] = {}
-            self._state["notices"][
-                "pending_notices_present"
-            ] = self._are_notices_pending()
-            self._state["notices"]["pending_notices"] = self._get_notices()
+            new_state["system_info"] = self._get_system_info()
+            new_state["host_firmware_version"] = self._get_host_firmware_version()
 
-            lease_stats = {"total": 0, "online": 0, "offline": 0}
-            for lease in self._state["dhcp_leases"]:
-                if "act" in lease.keys() and lease["act"] == "expired":
-                    continue
+            if "scope" in opts.keys() and opts["scope"] == "device_tracker":
+                try:
+                    new_state["arp_table"] = self._get_arp_table()
+                except BaseException as err:
+                    message = f"failed to retrieve arp table {err=}, {type(err)=}"
+                    _LOGGER.error(message)
+            else:
+                # queue up the firmaware task
+                # task = self._hass.loop.create_task(self._refresh_firmware_update_info())
+                # self._background_tasks.add(task)
+                # task.add_done_callback(self._background_tasks.discard)
+                self._hass.add_job(self._refresh_firmware_update_info)
 
-                lease_stats["total"] += 1
-                if "online" in lease.keys():
-                    if lease["online"] == "online":
-                        lease_stats["online"] += 1
-                    if lease["online"] == "offline":
-                        lease_stats["offline"] += 1
+                new_state["firmware_update_info"] = self._get_firmware_update_info()
+                new_state["telemetry"] = self._get_telemetry()
+                new_state["config"] = self._get_config()
+                new_state["interfaces"] = self._get_interfaces()
+                new_state["services"] = self._get_services()
+                new_state["carp_interfaces"] = self._get_carp_interfaces()
+                new_state["carp_status"] = self._get_carp_status()
+                new_state["dhcp_leases"] = self._get_dhcp_leases()
+                new_state["dhcp_stats"] = {}
+                new_state["notices"] = {}
+                new_state["notices"][
+                    "pending_notices_present"
+                ] = self._are_notices_pending()
+                new_state["notices"]["pending_notices"] = self._get_notices()
 
-            self._state["dhcp_stats"]["leases"] = lease_stats
-
-            # calcule pps and kbps
-            scan_interval = self._config_entry.options.get(
-                CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-            )
-            update_time = dict_get(self._state, "update_time")
-            previous_update_time = dict_get(self._state, "previous_state.update_time")
-
-            if previous_update_time is not None:
-                elapsed_time = update_time - previous_update_time
-
-                # calculate CPU Usage based on ticks
-                # /usr/local/www/widgets/widgets/system_information.widget.php
-                previous_cpu = dict_get(self._state, "previous_state.telemetry.cpu")
-                if previous_cpu is not None:
-                    current_cpu = dict_get(self._state, "telemetry.cpu")
-                    if (
-                        dict_get(previous_cpu, "ticks.total")
-                        <= dict_get(current_cpu, "ticks.total")
-                    ) and (
-                        dict_get(previous_cpu, "ticks.idle")
-                        <= dict_get(current_cpu, "ticks.idle")
-                    ):
-                        total_change = dict_get(current_cpu, "ticks.total") - dict_get(
-                            previous_cpu, "ticks.total"
-                        )
-                        idle_change = dict_get(current_cpu, "ticks.idle") - dict_get(
-                            previous_cpu, "ticks.idle"
-                        )
-                        # avoid division by 0 issues
-                        if total_change > 0:
-                            cpu_used_percent = math.floor(
-                                ((total_change - idle_change) / total_change) * 100
-                            )
-                            self._state["telemetry"]["cpu"][
-                                "used_percent"
-                            ] = cpu_used_percent
-                        else:
-                            self._state["telemetry"]["cpu"]["used_percent"] = dict_get(
-                                previous_state, "telemetry.cpu.used_percent"
-                            )
-
-                for interface_name in dict_get(
-                    self._state, "telemetry.interfaces", {}
-                ).keys():
-                    interface = dict_get(
-                        self._state, f"telemetry.interfaces.{interface_name}"
-                    )
-                    previous_interface = dict_get(
-                        self._state,
-                        f"previous_state.telemetry.interfaces.{interface_name}",
-                    )
-                    if previous_interface is None:
-                        break
-
-                    for property in [
-                        "inbytes",
-                        "outbytes",
-                        "inbytespass",
-                        "outbytespass",
-                        "inbytesblock",
-                        "outbytesblock",
-                        "inpkts",
-                        "outpkts",
-                        "inpktspass",
-                        "outpktspass",
-                        "inpktsblock",
-                        "outpktsblock",
-                    ]:
-
-                        current_parent_value = interface[property]
-                        previous_parent_value = previous_interface[property]
-                        change = abs(current_parent_value - previous_parent_value)
-                        rate = change / elapsed_time
-
-                        value = 0
-                        if "pkts" in property:
-                            label = "packets_per_second"
-                            value = rate
-                        if "bytes" in property:
-                            label = "kilobytes_per_second"
-                            # 1 Byte = 8 bits
-                            # 1 byte is equal to 0.001 kilobytes
-                            KBs = rate / 1000
-                            # Kbs = KBs * 8
-                            value = KBs
-
-                        new_property = f"{property}_{label}"
-                        interface[new_property] = int(round(value, 0))
-
+                lease_stats = {"total": 0, "online": 0, "offline": 0}
+                for lease in new_state["dhcp_leases"]:
+                    if "act" in lease.keys() and lease["act"] == "expired":
                         continue
 
-                        # TODO: this logic is not perfect but probably 'good enough'
-                        # to make this perfect the stats should probably be their own
-                        # coordinator
-                        #
-                        # put this here to prevent over-agressive calculations when
-                        # data is refreshed due to switches being triggered etc
-                        #
-                        # theoretically if switches are going on/off rapidly the value
-                        # would never get updated as the code currently is
-                        if elapsed_time >= scan_interval:
+                    lease_stats["total"] += 1
+                    if "online" in lease.keys():
+                        if lease["online"] == "online":
+                            lease_stats["online"] += 1
+                        if lease["online"] == "offline":
+                            lease_stats["offline"] += 1
+
+                new_state["dhcp_stats"]["leases"] = lease_stats
+
+                # calcule pps and kbps
+                scan_interval = self._config_entry.options.get(
+                    CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+                )
+                update_time = dict_get(new_state, "update_time")
+                previous_update_time = dict_get(new_state, "previous_state.update_time")
+
+                if previous_update_time is not None:
+                    elapsed_time = update_time - previous_update_time
+
+                    # calculate CPU Usage based on ticks
+                    # /usr/local/www/widgets/widgets/system_information.widget.php
+                    previous_cpu = dict_get(new_state, "previous_state.telemetry.cpu")
+                    if previous_cpu is not None:
+                        current_cpu = dict_get(new_state, "telemetry.cpu")
+                        if (
+                            dict_get(previous_cpu, "ticks.total")
+                            <= dict_get(current_cpu, "ticks.total")
+                        ) and (
+                            dict_get(previous_cpu, "ticks.idle")
+                            <= dict_get(current_cpu, "ticks.idle")
+                        ):
+                            total_change = dict_get(
+                                current_cpu, "ticks.total"
+                            ) - dict_get(previous_cpu, "ticks.total")
+                            idle_change = dict_get(
+                                current_cpu, "ticks.idle"
+                            ) - dict_get(previous_cpu, "ticks.idle")
+                            # avoid division by 0 issues
+                            if total_change > 0:
+                                cpu_used_percent = math.floor(
+                                    ((total_change - idle_change) / total_change) * 100
+                                )
+                                new_state["telemetry"]["cpu"][
+                                    "used_percent"
+                                ] = cpu_used_percent
+                            else:
+                                new_state["telemetry"]["cpu"][
+                                    "used_percent"
+                                ] = dict_get(
+                                    previous_state, "telemetry.cpu.used_percent"
+                                )
+
+                    for interface_name in dict_get(
+                        new_state, "telemetry.interfaces", {}
+                    ).keys():
+                        interface = dict_get(
+                            new_state, f"telemetry.interfaces.{interface_name}"
+                        )
+                        previous_interface = dict_get(
+                            new_state,
+                            f"previous_state.telemetry.interfaces.{interface_name}",
+                        )
+                        if previous_interface is None:
+                            break
+
+                        for property in [
+                            "inbytes",
+                            "outbytes",
+                            "inbytespass",
+                            "outbytespass",
+                            "inbytesblock",
+                            "outbytesblock",
+                            "inpkts",
+                            "outpkts",
+                            "inpktspass",
+                            "outpktspass",
+                            "inpktsblock",
+                            "outpktsblock",
+                        ]:
+
+                            current_parent_value = interface[property]
+                            previous_parent_value = previous_interface[property]
+                            change = abs(current_parent_value - previous_parent_value)
+                            rate = change / elapsed_time
+
+                            value = 0
+                            if "pkts" in property:
+                                label = "packets_per_second"
+                                value = rate
+                            if "bytes" in property:
+                                label = "kilobytes_per_second"
+                                # 1 Byte = 8 bits
+                                # 1 byte is equal to 0.001 kilobytes
+                                KBs = rate / 1000
+                                # Kbs = KBs * 8
+                                value = KBs
+
+                            new_property = f"{property}_{label}"
                             interface[new_property] = int(round(value, 0))
-                        else:
-                            previous_value = dict_get(previous_interface, new_property)
-                            if previous_value is None:
-                                previous_value = value
-                            interface[new_property] = int(round(previous_value, 0))
 
-                for server_name in dict_get(
-                    self._state, "telemetry.openvpn.servers", {}
-                ).keys():
-                    if (
-                        server_name
-                        not in dict_get(
-                            self._state, "telemetry.openvpn.servers", {}
-                        ).keys()
-                    ):
-                        continue
+                            continue
 
-                    if (
-                        server_name
-                        not in dict_get(
-                            self._state, "previous_state.telemetry.openvpn.servers", {}
-                        ).keys()
-                    ):
-                        continue
+                            # TODO: this logic is not perfect but probably 'good enough'
+                            # to make this perfect the stats should probably be their own
+                            # coordinator
+                            #
+                            # put this here to prevent over-agressive calculations when
+                            # data is refreshed due to switches being triggered etc
+                            #
+                            # theoretically if switches are going on/off rapidly the value
+                            # would never get updated as the code currently is
+                            if elapsed_time >= scan_interval:
+                                interface[new_property] = int(round(value, 0))
+                            else:
+                                previous_value = dict_get(
+                                    previous_interface, new_property
+                                )
+                                if previous_value is None:
+                                    previous_value = value
+                                interface[new_property] = int(round(previous_value, 0))
 
-                    server = self._state["telemetry"]["openvpn"]["servers"][server_name]
-                    previous_server = self._state["previous_state"]["telemetry"][
-                        "openvpn"
-                    ]["servers"][server_name]
+                    for server_name in dict_get(
+                        new_state, "telemetry.openvpn.servers", {}
+                    ).keys():
+                        if (
+                            server_name
+                            not in dict_get(
+                                new_state, "telemetry.openvpn.servers", {}
+                            ).keys()
+                        ):
+                            continue
 
-                    for property in [
-                        "total_bytes_recv",
-                        "total_bytes_sent",
-                    ]:
+                        if (
+                            server_name
+                            not in dict_get(
+                                new_state,
+                                "previous_state.telemetry.openvpn.servers",
+                                {},
+                            ).keys()
+                        ):
+                            continue
 
-                        current_parent_value = server[property]
-                        previous_parent_value = previous_server[property]
-                        change = abs(current_parent_value - previous_parent_value)
-                        rate = change / elapsed_time
+                        server = new_state["telemetry"]["openvpn"]["servers"][
+                            server_name
+                        ]
+                        previous_server = new_state["previous_state"]["telemetry"][
+                            "openvpn"
+                        ]["servers"][server_name]
 
-                        value = 0
-                        if "pkts" in property:
-                            label = "packets_per_second"
-                            value = rate
-                        if "bytes" in property:
-                            label = "kilobytes_per_second"
-                            # 1 Byte = 8 bits
-                            # 1 byte is equal to 0.001 kilobytes
-                            KBs = rate / 1000
-                            # Kbs = KBs * 8
-                            value = KBs
+                        for property in [
+                            "total_bytes_recv",
+                            "total_bytes_sent",
+                        ]:
 
-                        new_property = f"{property}_{label}"
-                        server[new_property] = int(round(value, 0))
+                            current_parent_value = server[property]
+                            previous_parent_value = previous_server[property]
+                            change = abs(current_parent_value - previous_parent_value)
+                            rate = change / elapsed_time
+
+                            value = 0
+                            if "pkts" in property:
+                                label = "packets_per_second"
+                                value = rate
+                            if "bytes" in property:
+                                label = "kilobytes_per_second"
+                                # 1 Byte = 8 bits
+                                # 1 byte is equal to 0.001 kilobytes
+                                KBs = rate / 1000
+                                # Kbs = KBs * 8
+                                value = KBs
+
+                            new_property = f"{property}_{label}"
+                            server[new_property] = int(round(value, 0))
+        except BaseException as err:
+            # still replace current state as best we can
+            self._state = new_state
+            raise err
+
+        self._state = new_state
 
 
 class CoordinatorEntityManager:
@@ -627,20 +644,45 @@ class PfSenseEntity(CoordinatorEntity, RestoreEntity):
         client = self._get_pfsense_client()
         client.file_notice(**kwargs)
 
-    def service_start_service(self, service_name: str):
+    def service_start_service(
+        self, service_name: str, service: dict | str | None = None
+    ):
         client = self._get_pfsense_client()
-        client.start_service(service_name)
+        client.start_service(service_name, service)
 
-    def service_stop_service(self, service_name: str):
+    def service_stop_service(
+        self, service_name: str, service: dict | str | None = None
+    ):
         client = self._get_pfsense_client()
-        client.stop_service(service_name)
+        client.stop_service(service_name, service)
 
-    def service_restart_service(self, service_name: str, only_if_running: bool = False):
+    def service_restart_service(
+        self,
+        service_name: str,
+        only_if_running: int | str | None | bool = False,
+        service: dict | str | None = None,
+    ):
         client = self._get_pfsense_client()
+
+        if isinstance(only_if_running, str):
+            if len(only_if_running) > 0:
+                if only_if_running.lower() == "true" or only_if_running == "1":
+                    only_if_running = True
+                else:
+                    only_if_running = False
+            else:
+                only_if_running = False
+
+        if isinstance(only_if_running, int):
+            if only_if_running > 0:
+                only_if_running = True
+            else:
+                only_if_running = False
+
         if only_if_running:
-            client.restart_service_if_running(service_name)
+            client.restart_service_if_running(service_name, service)
         else:
-            client.restart_service(service_name)
+            client.restart_service(service_name, service)
 
     def service_reset_state_table(self):
         client = self._get_pfsense_client()

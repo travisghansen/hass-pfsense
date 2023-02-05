@@ -96,6 +96,13 @@ start_service:
       advanced: false
       example: "haproxy|dhcp|dpinger|.."
       default: ""
+    service:
+      name: Service Data
+      description: The json-encoded data of the service.
+      required: false
+      advanced: true
+      example: '{"vpnid": 1, "mode": "server"}'
+      default: ""
 
 stop_service:
   name: Stop service
@@ -111,6 +118,13 @@ stop_service:
       advanced: false
       example: "haproxy|dhcp|dpinger|.."
       default: ""
+    service:
+      name: Service Data
+      description: The json-encoded data of the service.
+      required: false
+      advanced: true
+      example: '{"vpnid": 1, "mode": "server"}'
+      default: ""
 
 restart_service:
   name: Restart service
@@ -125,6 +139,20 @@ restart_service:
       required: true
       advanced: false
       example: "haproxy|dhcp|dpinger|.."
+      default: ""
+    only_if_running:
+      name: Only If Running
+      description: Only restart if the service is currently running.
+      required: false
+      advanced: true
+      example: "true|false|1|0"
+      default: false
+    service:
+      name: Service Data
+      description: The json-encoded data of the service.
+      required: false
+      advanced: true
+      example: '{"vpnid": 1, "mode": "server"}'
       default: ""
 
 reset_state_table:

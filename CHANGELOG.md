@@ -1,3 +1,12 @@
+# v0.6.0
+
+Released 2023-02-05
+
+- more robust handling of pfsense services
+  - proper `openvpn` service handling (entity per configuration)
+  - better service switch logic
+- minor improvements throughout
+
 # v0.5.16
 
 Released 2023-01-30
