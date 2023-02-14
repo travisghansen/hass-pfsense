@@ -252,9 +252,9 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         state_class=STATE_CLASS_MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
-    "dhcp_stats.leases.offline": SensorEntityDescription(
-        key="dhcp_stats.leases.offline",
-        name="DHCP Leases Offline",
+    "dhcp_stats.leases.idle_offline": SensorEntityDescription(
+        key="dhcp_stats.leases.idle_offline",
+        name="DHCP Leases Idle/Offline",
         native_unit_of_measurement="clients",
         icon="mdi:ip-network-outline",
         state_class=STATE_CLASS_MEASUREMENT,
