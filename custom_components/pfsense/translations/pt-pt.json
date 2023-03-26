@@ -1,0 +1,53 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "Dispositivo já configurado"
+    },
+    "error": {
+      "cannot_connect": "Não é possivel a ligação",
+      "invalid_auth": "Autenticação Inválida",
+      "unknown": "Erro inesperado",
+      "invalid_url_format": "Formato de link inválido",
+      "privilege_missing": "O usuário tem permissões insuficientes (Sistema - sincronização de nó HA)",
+      "connect_timeout": "Tempo limite de ligação",
+      "cannot_connect_ssl": "Falha SSL",
+      "url_redirect": "URL incorreto (redirecionamento)"
+    },
+    "step": {
+      "user": {
+        "data": {
+          "url": "URL",
+          "username": "Nome de utilizador",
+          "name": "Nome da firewall",
+          "password": "Senha",
+          "verify_ssl": "Verificar certificado SSL"
+        },
+        "title": "Conecte-se ao firewall/router pfSense"
+      }
+    }
+  },
+  "options": {
+    "error": {
+      "cannot_connect": "Falhou a ligar",
+      "unknown": "Erro inesperado"
+    },
+    "step": {
+      "init": {
+        "data": {
+          "scan_interval": "Intervalo de pesquisa (segundos)",
+          "device_tracker_enabled": "Habilitar a pesquisa de dispositivos",
+          "device_tracker_scan_interval": "Intervalo de pesquisa de dispositivos (segundos)",
+          "device_tracker_consider_home": "Considerar a pesquisa inicial de dispositivos (segundos)"
+        },
+        "description": "Configurar Opções."
+      },
+      "device_tracker": {
+        "description": "Escolha quais dispositivos deseja seguir.",
+        "data": {
+          "devices": "Dispositivos para seguir"
+        }
+      }
+    }
+  },
+  "title": "pfSense"
+}
