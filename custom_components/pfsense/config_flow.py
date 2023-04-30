@@ -100,6 +100,11 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_VERIFY_SSL: verify_ssl,
                     },
                 )
+
+            # can be when using http instead of https
+            # 2022-08-16 09:43:17.803 ERROR (MainThread) [custom_components.opnsense.config_flow] Unexpected err=RemoteDisconnected('Remote end closed connection without response'), type(err)=<class 'http.client.RemoteDisconnected'>
+            # when proper permissions are not setup
+            # 2022-08-16 09:43:26.680 ERROR (MainThread) [custom_components.opnsense.config_flow] Unexpected err=TypeError('string indices must be integers'), type(err)=<class 'TypeError'>
             except InvalidURL:
                 errors["base"] = "invalid_url_format"
             except xmlrpc.client.Fault as err:
