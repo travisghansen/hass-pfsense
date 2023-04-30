@@ -20,7 +20,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity_registry import async_get_registry
+from homeassistant.helpers.entity_registry import async_get as async_get_ent_reg
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -581,8 +581,9 @@ class CoordinatorEntityManager:
                 # self.entity_unique_ids.remove(entity_unique_id)
                 # del self.entities[entity_unique_id]
 
-    async def async_remove_entity(self, entity):
-        registry = await async_get_registry(self.hass)
+    @callback
+    def async_remove_entity(self, entity):
+        registry = async_get_ent_reg(self.hass)
         if entity.entity_id in registry.entities:
             registry.async_remove(entity.entity_id)
 
