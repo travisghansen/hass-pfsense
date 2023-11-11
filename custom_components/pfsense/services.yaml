@@ -8,6 +8,7 @@ close_notice:
   # Different fields that your service accepts
   fields:
     entity_id:
+      name: Entity ID
       description: pfSense entity id
       example: "binary_sensor.pfsense_localdomain_pending_notices_present"
 
