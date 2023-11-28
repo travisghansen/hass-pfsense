@@ -354,7 +354,7 @@ class PfSenseData:
 
                     lease_stats["total"] += 1
                     if "online" in lease.keys():
-                        if lease["online"] in ["active", "online"]:
+                        if lease["online"] in ["active", "active/online", "online"]:
                             lease_stats["online"] += 1
                         if lease["online"] in ["offline", "idle/offline", "idle"]:
                             lease_stats["idle_offline"] += 1
