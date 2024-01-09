@@ -4,16 +4,16 @@ from __future__ import annotations
 from typing import Final
 
 from homeassistant.components.sensor import (
-    STATE_CLASS_MEASUREMENT,
     SensorDeviceClass,
     SensorEntityDescription,
+    SensorStateClass
 )
 from homeassistant.const import (
-    DATA_BYTES,
-    FREQUENCY_HERTZ,
+    UnitOfInformation,
+    UnitOfTemperature,
+    UnitOfFrequency,
     PERCENTAGE,
-    TEMP_CELSIUS,
-    TIME_SECONDS,
+    UnitOfTime,
 )
 
 DEFAULT_USERNAME = "admin"
@@ -53,7 +53,7 @@ BYTES_SENT = "bytes_sent"
 PACKETS_RECEIVED = "packets_received"
 PACKETS_SENT = "packets_sent"
 DATA_PACKETS = "packets"
-DATA_RATE_PACKETS_PER_SECOND = f"{DATA_PACKETS}/{TIME_SECONDS}"
+DATA_RATE_PACKETS_PER_SECOND = f"{DATA_PACKETS}/{UnitOfTime.SECONDS}"
 
 ICON_MEMORY = "mdi:memory"
 
@@ -64,7 +64,7 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         name="pf State Table Used",
         native_unit_of_measurement=COUNT,
         icon="mdi:table-network",
-        state_class=STATE_CLASS_MEASUREMENT,
+        state_class=SensorStateClass.MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     "telemetry.pfstate.total": SensorEntityDescription(
@@ -79,22 +79,22 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         name="pf State Table Used Percentage",
         native_unit_of_measurement=PERCENTAGE,
         icon="mdi:table-network",
-        state_class=STATE_CLASS_MEASUREMENT,
+        state_class=SensorStateClass.MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     # mbuf
     "telemetry.mbuf.used": SensorEntityDescription(
         key="telemetry.mbuf.used",
         name="Memory Buffers Used",
-        native_unit_of_measurement=DATA_BYTES,
+        native_unit_of_measurement=UnitOfInformation.BYTES,
         icon=ICON_MEMORY,
-        state_class=STATE_CLASS_MEASUREMENT,
+        state_class=SensorStateClass.MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     "telemetry.mbuf.total": SensorEntityDescription(
         key="telemetry.mbuf.total",
         name="Memory Buffers Total",
-        native_unit_of_measurement=DATA_BYTES,
+        native_unit_of_measurement=UnitOfInformation.BYTES,
         icon=ICON_MEMORY,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
@@ -103,45 +103,45 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         name="Memory Buffers Used Percentage",
         native_unit_of_measurement=PERCENTAGE,
         icon=ICON_MEMORY,
-        state_class=STATE_CLASS_MEASUREMENT,
+        state_class=SensorStateClass.MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     # memory with state_class due to being less static
     "telemetry.memory.usermem": SensorEntityDescription(
         key="telemetry.memory.usermem",
         name="Memory Usermem",
-        native_unit_of_measurement=DATA_BYTES,
+        native_unit_of_measurement=UnitOfInformation.BYTES,
         icon=ICON_MEMORY,
-        state_class=STATE_CLASS_MEASUREMENT,
+        state_class=SensorStateClass.MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     "telemetry.memory.swap_reserved": SensorEntityDescription(
         key="telemetry.memory.swap_reserved",
         name="Memory Swap Reserved",
-        native_unit_of_measurement=DATA_BYTES,
+        native_unit_of_measurement=UnitOfInformation.BYTES,
         icon=ICON_MEMORY,
-        state_class=STATE_CLASS_MEASUREMENT,
+        state_class=SensorStateClass.MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     # memory without state_class due to being generally static
     "telemetry.memory.physmem": SensorEntityDescription(
         key="telemetry.memory.physmem",
         name="Memory Physmem",
-        native_unit_of_measurement=DATA_BYTES,
+        native_unit_of_measurement=UnitOfInformation.BYTES,
         icon=ICON_MEMORY,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     "telemetry.memory.realmem": SensorEntityDescription(
         key="telemetry.memory.realmem",
         name="Memory Realmem",
-        native_unit_of_measurement=DATA_BYTES,
+        native_unit_of_measurement=UnitOfInformation.BYTES,
         icon=ICON_MEMORY,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     "telemetry.memory.swap_total": SensorEntityDescription(
         key="telemetry.memory.swap_total",
         name="Memory Swap Total",
-        native_unit_of_measurement=DATA_BYTES,
+        native_unit_of_measurement=UnitOfInformation.BYTES,
         icon=ICON_MEMORY,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
@@ -151,7 +151,7 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         name="Memory Swap Used Percentage",
         native_unit_of_measurement=PERCENTAGE,
         icon=ICON_MEMORY,
-        state_class=STATE_CLASS_MEASUREMENT,
+        state_class=SensorStateClass.MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     "telemetry.memory.used_percent": SensorEntityDescription(
@@ -159,7 +159,7 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         name="Memory Used Percentage",
         native_unit_of_measurement=PERCENTAGE,
         icon=ICON_MEMORY,
-        state_class=STATE_CLASS_MEASUREMENT,
+        state_class=SensorStateClass.MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     # cpu
@@ -168,21 +168,21 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         name="CPU Usage",
         native_unit_of_measurement=PERCENTAGE,
         icon="mdi:speedometer-medium",
-        state_class=STATE_CLASS_MEASUREMENT,
+        state_class=SensorStateClass.MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     "telemetry.cpu.frequency.current": SensorEntityDescription(
         key="telemetry.cpu.frequency.current",
         name="CPU Frequency Current",
-        native_unit_of_measurement=FREQUENCY_HERTZ,
+        native_unit_of_measurement=UnitOfFrequency.HERTZ,
         icon="mdi:speedometer-medium",
-        state_class=STATE_CLASS_MEASUREMENT,
+        state_class=SensorStateClass.MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     "telemetry.cpu.frequency.max": SensorEntityDescription(
         key="telemetry.cpu.frequency.max",
         name="CPU Frequency Max",
-        native_unit_of_measurement=FREQUENCY_HERTZ,
+        native_unit_of_measurement=UnitOfFrequency.HERTZ,
         icon="mdi:speedometer",
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
@@ -198,7 +198,7 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         name="System Load Average One Minute",
         # native_unit_of_measurement=PERCENTAGE,
         icon="mdi:speedometer-slow",
-        state_class=STATE_CLASS_MEASUREMENT,
+        state_class=SensorStateClass.MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     "telemetry.system.load_average.five_minute": SensorEntityDescription(
@@ -206,7 +206,7 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         name="System Load Average Five Minute",
         # native_unit_of_measurement=PERCENTAGE,
         icon="mdi:speedometer-slow",
-        state_class=STATE_CLASS_MEASUREMENT,
+        state_class=SensorStateClass.MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     "telemetry.system.load_average.fifteen_minute": SensorEntityDescription(
@@ -214,17 +214,17 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         name="System Load Average Fifteen Minute",
         # native_unit_of_measurement=PERCENTAGE,
         icon="mdi:speedometer-slow",
-        state_class=STATE_CLASS_MEASUREMENT,
+        state_class=SensorStateClass.MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     # system
     "telemetry.system.temp": SensorEntityDescription(
         key="telemetry.system.temp",
         name="System Temperature",
-        native_unit_of_measurement=TEMP_CELSIUS,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         icon="mdi:thermometer",
-        state_class=STATE_CLASS_MEASUREMENT,
+        state_class=SensorStateClass.MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     "telemetry.system.boottime": SensorEntityDescription(
@@ -241,7 +241,7 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         name="DHCP Leases Total",
         native_unit_of_measurement="clients",
         icon="mdi:ip-network-outline",
-        state_class=STATE_CLASS_MEASUREMENT,
+        state_class=SensorStateClass.MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     "dhcp_stats.leases.online": SensorEntityDescription(
@@ -249,7 +249,7 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         name="DHCP Leases Online",
         native_unit_of_measurement="clients",
         icon="mdi:ip-network-outline",
-        state_class=STATE_CLASS_MEASUREMENT,
+        state_class=SensorStateClass.MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     "dhcp_stats.leases.idle_offline": SensorEntityDescription(
@@ -257,7 +257,7 @@ SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
         name="DHCP Leases Idle/Offline",
         native_unit_of_measurement="clients",
         icon="mdi:ip-network-outline",
-        state_class=STATE_CLASS_MEASUREMENT,
+        state_class=SensorStateClass.MEASUREMENT,
         # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
 }
