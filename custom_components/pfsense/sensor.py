@@ -6,15 +6,15 @@ from awesomeversion import AwesomeVersion
 from homeassistant.components.sensor import (
     SensorEntity,
     SensorEntityDescription,
-    SensorStateClass
+    SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (  # ENTITY_CATEGORY_DIAGNOSTIC,
-    UnitOfDataRate,
-    UnitOfTime,
-    UnitOfInformation,
     PERCENTAGE,
     STATE_UNKNOWN,
+    UnitOfDataRate,
+    UnitOfInformation,
+    UnitOfTime,
     __version__,
 )
 from homeassistant.core import HomeAssistant, callback

@@ -6,13 +6,13 @@ from typing import Final
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntityDescription,
-    SensorStateClass
+    SensorStateClass,
 )
 from homeassistant.const import (
+    PERCENTAGE,
+    UnitOfFrequency,
     UnitOfInformation,
     UnitOfTemperature,
-    UnitOfFrequency,
-    PERCENTAGE,
     UnitOfTime,
 )
 
