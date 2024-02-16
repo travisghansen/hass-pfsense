@@ -40,6 +40,8 @@ async def async_setup_entry(
             rules = dict_get(state, "config.filter.rule")
             if isinstance(rules, list):
                 for rule in rules:
+                    if not isinstance(rule, dict):
+                        continue
                     icon = "mdi:security-network"
                     # likely only want very specific rules to manipulate from actions
                     enabled_default = False
