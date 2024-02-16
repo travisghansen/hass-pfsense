@@ -1,4 +1,5 @@
 """pfSense integration."""
+
 import logging
 
 from homeassistant.components.binary_sensor import (

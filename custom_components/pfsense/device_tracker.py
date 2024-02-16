@@ -1,11 +1,12 @@
 """Support for tracking for pfSense devices."""
+
 from __future__ import annotations
 
 import logging
 import time
 from typing import Any, Mapping
 
-from homeassistant.components.device_tracker import SOURCE_TYPE_ROUTER
+from homeassistant.components.device_tracker import SourceType
 from homeassistant.components.device_tracker.config_entry import ScannerEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -191,7 +192,7 @@ class PfSenseScannerEntity(PfSenseEntity, ScannerEntity):
     @property
     def source_type(self) -> str:
         """Return the source type, eg gps or router, of the device."""
-        return SOURCE_TYPE_ROUTER
+        return SourceType.ROUTER
 
     @property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
@@ -213,9 +214,9 @@ class PfSenseScannerEntity(PfSenseEntity, ScannerEntity):
             self._extra_state["last_known_ip"] = self._last_known_ip
 
         if self._last_known_connected_time is not None:
-            self._extra_state[
-                "last_known_connected_time"
-            ] = self._last_known_connected_time
+            self._extra_state["last_known_connected_time"] = (
+                self._last_known_connected_time
+            )
 
         return self._extra_state
 

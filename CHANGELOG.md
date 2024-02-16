@@ -1,3 +1,10 @@
+# v0.6.3
+
+Released 2024-02-16
+
+- remove deprectated constants
+- code formatting
+
 # v0.6.2
 
 Released 2024-02-16

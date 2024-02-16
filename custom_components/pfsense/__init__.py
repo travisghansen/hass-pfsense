@@ -1,4 +1,5 @@
 """Support for pfSense."""
+
 from __future__ import annotations
 
 import copy
@@ -398,10 +399,10 @@ class PfSenseData:
                                     "used_percent"
                                 ] = cpu_used_percent
                             else:
-                                new_state["telemetry"]["cpu"][
-                                    "used_percent"
-                                ] = dict_get(
-                                    previous_state, "telemetry.cpu.used_percent"
+                                new_state["telemetry"]["cpu"]["used_percent"] = (
+                                    dict_get(
+                                        previous_state, "telemetry.cpu.used_percent"
+                                    )
                                 )
 
                     for interface_name in dict_get(
