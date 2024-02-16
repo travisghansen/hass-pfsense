@@ -576,6 +576,16 @@ class PfSenseGatewaySensor(PfSenseSensor):
                 break
         return found
 
+    def _pfsense_get_gateway_details(self):
+        state = self.coordinator.data
+        found = None
+        gateway_name = self._pfsense_get_gateway_name()
+        for i_gateway_name in state["telemetry"]["gateways_detail"].keys():
+            if i_gateway_name == gateway_name:
+                found = state["telemetry"]["gateways_detail"][i_gateway_name]
+                break
+        return found
+
     @property
     def available(self) -> bool:
         gateway = self._pfsense_get_gateway()
@@ -596,11 +606,23 @@ class PfSenseGatewaySensor(PfSenseSensor):
     def extra_state_attributes(self):
         attributes = {}
         gateway = self._pfsense_get_gateway()
+        gateway_detail = self._pfsense_get_gateway_details()
         for attr in ["monitorip", "srcip", "substatus"]:
             value = gateway[attr]
             if attr == "substatus" and gateway[attr] == "none":
                 value = None
             attributes[attr] = value
+
+        if gateway_detail:
+            for attr in ["weight", "isdefaultgw", "interface", "gateway"]:
+                if attr in gateway_detail:
+                    value = gateway_detail[attr]
+                    attributes[attr] = value
+                else:
+                    # value is omitted when false by pfsense function
+                    if attr == "isdefaultgw":
+                        value = False
+                        attributes[attr] = value
 
         return attributes
 

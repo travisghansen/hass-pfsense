@@ -1,3 +1,10 @@
+# v0.6.4
+
+Released 2024-02-16
+
+- additional attrs to gateway entites
+- more defensive handling of rules
+
 # v0.6.3
 
 Released 2024-02-16

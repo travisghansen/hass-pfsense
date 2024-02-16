@@ -1314,6 +1314,7 @@ $toreturn = [
   "ipsec" => [],
 
   "gateways" => return_gateways_status(true),
+  "gateways_detail" => return_gateways_array(),
 ];
 
 foreach($filesystems as $fs) {
