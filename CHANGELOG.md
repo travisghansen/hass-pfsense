@@ -1,3 +1,9 @@
+# v0.6.2
+
+Released 2024-02-16
+
+- minor fixes
+
 # v0.6.1
 
 Released 2023-04-30
@@ -87,7 +93,7 @@ Released 2022-07-09
 
 - fixes to help concurrency with the xmlrpc api
 - more robust handling of devcie tracker entities
-- more robust handling of update entities 
+- more robust handling of update entities
 
 # v0.5.4
 
