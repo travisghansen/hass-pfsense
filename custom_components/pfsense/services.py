@@ -4,6 +4,7 @@ from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import async_get_platforms
+from homeassistant.helpers.service import entity_service_call
 import voluptuous as vol
 
 from .const import (
@@ -54,8 +55,8 @@ class ServiceRegistrar:
 
         # Setup services
         async def _async_send_service(call: ServiceCall):
-            await self.hass.helpers.service.entity_service_call(
-                async_get_entities(self.hass), f"service_{call.service}", call
+            await entity_service_call(
+                self.hass, async_get_entities(self.hass), f"service_{call.service}", call
             )
 
         self.hass.services.async_register(
