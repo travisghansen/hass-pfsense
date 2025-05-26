@@ -54,8 +54,8 @@ class ServiceRegistrar:
 
         # Setup services
         async def _async_send_service(call: ServiceCall):
-            await self.hass.helpers.service.entity_service_call(
-                async_get_entities(self.hass), f"service_{call.service}", call
+            await entity_service_call(
+                self.hass, async_get_entities(self.hass), f"service_{call.service}", call
             )
 
         self.hass.services.async_register(
