@@ -1,3 +1,9 @@
+# v0.6.6
+
+Released 2025-05-26
+
+- fix services (see #209 and #210)
+
 # v0.6.5
 
 Released 2024-02-17
