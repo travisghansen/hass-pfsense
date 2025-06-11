@@ -11,7 +11,7 @@ pfSense is a free and open source firewall and router that also features unified
 interactions. No special plugins or software needs to be installed to use the
 integration.
 
-Initial development was done againt `pfSense` `2.5.2` and `home-assistant`
+Initial development was done against `pfSense` `2.5.2` and `home-assistant`
 `2021.10`.
 
 # installation
