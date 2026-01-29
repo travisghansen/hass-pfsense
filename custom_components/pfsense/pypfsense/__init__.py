@@ -13,7 +13,7 @@ from xml.parsers.expat import ExpatError
 import xmlrpc.client
 
 # value to set as the socket timeout
-DEFAULT_TIMEOUT = 10
+DEFAULT_TIMEOUT = 30
 
 _LOGGER = logging.getLogger(__name__)
 
