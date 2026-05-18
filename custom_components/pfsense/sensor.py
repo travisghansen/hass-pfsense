@@ -1,20 +1,21 @@
 """Provides a sensor to track various status aspects of pfSense."""
+
 import logging
 import re
 
 from awesomeversion import AwesomeVersion
 from homeassistant.components.sensor import (
-    STATE_CLASS_MEASUREMENT,
     SensorEntity,
     SensorEntityDescription,
+    SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (  # ENTITY_CATEGORY_DIAGNOSTIC,
-    DATA_BYTES,
-    DATA_RATE_KILOBYTES_PER_SECOND,
     PERCENTAGE,
     STATE_UNKNOWN,
-    TIME_MILLISECONDS,
+    UnitOfDataRate,
+    UnitOfInformation,
+    UnitOfTime,
     __version__,
 )
 from homeassistant.core import HomeAssistant, callback
@@ -62,9 +63,9 @@ async def async_setup_entry(
                 "telemetry.memory.used_percent",
                 "telemetry.cpu.used_percent",
                 "telemetry.cpu.frequency.current",
-                "telemetry.cpu.load_average.one_minute",
-                "telemetry.cpu.load_average.five_minute",
-                "telemetry.cpu.load_average.fifteen_minute",
+                "telemetry.system.load_average.one_minute",
+                "telemetry.system.load_average.five_minute",
+                "telemetry.system.load_average.fifteen_minute",
                 "telemetry.system.temp",
                 "telemetry.system.boottime",
                 # "dhcp_stats.leases.total",
@@ -95,7 +96,7 @@ async def async_setup_entry(
                     name="Filesystem Used Percentage {}".format(mountpoint_clean),
                     native_unit_of_measurement=PERCENTAGE,
                     icon="mdi:harddisk",
-                    state_class=STATE_CLASS_MEASUREMENT,
+                    state_class=SensorStateClass.MEASUREMENT,
                     # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                 ),
                 True,
@@ -182,20 +183,22 @@ async def async_setup_entry(
                     "_packets_per_second" in property
                     or "_kilobytes_per_second" in property
                 ):
-                    state_class = STATE_CLASS_MEASUREMENT
+                    state_class = SensorStateClass.MEASUREMENT
 
                 # native_unit_of_measurement
                 if "_packets_per_second" in property:
                     native_unit_of_measurement = DATA_RATE_PACKETS_PER_SECOND
 
                 if "_kilobytes_per_second" in property:
-                    native_unit_of_measurement = DATA_RATE_KILOBYTES_PER_SECOND
+                    native_unit_of_measurement = UnitOfDataRate.KILOBYTES_PER_SECOND
 
                 if native_unit_of_measurement is None:
                     if "bytes" in property:
-                        native_unit_of_measurement = DATA_BYTES
+                        native_unit_of_measurement = UnitOfInformation.BYTES
+                        state_class = SensorStateClass.TOTAL_INCREASING
                     if "pkts" in property:
                         native_unit_of_measurement = DATA_PACKETS
+                        state_class = SensorStateClass.TOTAL_INCREASING
 
                 if property in ["inerrs", "outerrs", "collisions"]:
                     native_unit_of_measurement = COUNT
@@ -241,7 +244,7 @@ async def async_setup_entry(
                     native_unit_of_measurement = PERCENTAGE
 
                 if property in ["delay", "stddev"]:
-                    native_unit_of_measurement = TIME_MILLISECONDS
+                    native_unit_of_measurement = UnitOfTime.MILLISECONDS
 
                 if property == "status":
                     icon = "mdi:check-network-outline"
@@ -279,18 +282,18 @@ async def async_setup_entry(
 
                 # state class
                 if "_kilobytes_per_second" in property:
-                    state_class = STATE_CLASS_MEASUREMENT
+                    state_class = SensorStateClass.MEASUREMENT
 
                 if property == "connected_client_count":
-                    state_class = STATE_CLASS_MEASUREMENT
+                    state_class = SensorStateClass.MEASUREMENT
 
                 # native_unit_of_measurement
                 if "_kilobytes_per_second" in property:
-                    native_unit_of_measurement = DATA_RATE_KILOBYTES_PER_SECOND
+                    native_unit_of_measurement = UnitOfDataRate.KILOBYTES_PER_SECOND
 
                 if native_unit_of_measurement is None:
                     if "bytes" in property:
-                        native_unit_of_measurement = DATA_BYTES
+                        native_unit_of_measurement = UnitOfInformation.BYTES
 
                 if property in ["connected_client_count"]:
                     native_unit_of_measurement = "clients"
@@ -573,6 +576,16 @@ class PfSenseGatewaySensor(PfSenseSensor):
                 break
         return found
 
+    def _pfsense_get_gateway_details(self):
+        state = self.coordinator.data
+        found = None
+        gateway_name = self._pfsense_get_gateway_name()
+        for i_gateway_name in state["telemetry"]["gateways_detail"].keys():
+            if i_gateway_name == gateway_name:
+                found = state["telemetry"]["gateways_detail"][i_gateway_name]
+                break
+        return found
+
     @property
     def available(self) -> bool:
         gateway = self._pfsense_get_gateway()
@@ -580,17 +593,36 @@ class PfSenseGatewaySensor(PfSenseSensor):
         if gateway is None or property not in gateway.keys():
             return False
 
+        if property in ["stddev", "delay", "loss"]:
+            value = gateway[property]
+            if isinstance(value, str):
+                value = re.sub("[^0-9\.]*", "", value)
+                if len(value) < 1:
+                    return False
+
         return super().available
 
     @property
     def extra_state_attributes(self):
         attributes = {}
         gateway = self._pfsense_get_gateway()
+        gateway_detail = self._pfsense_get_gateway_details()
         for attr in ["monitorip", "srcip", "substatus"]:
             value = gateway[attr]
             if attr == "substatus" and gateway[attr] == "none":
                 value = None
             attributes[attr] = value
+
+        if gateway_detail:
+            for attr in ["weight", "isdefaultgw", "interface", "gateway"]:
+                if attr in gateway_detail:
+                    value = gateway_detail[attr]
+                    attributes[attr] = value
+                else:
+                    # value is omitted when false by pfsense function
+                    if attr == "isdefaultgw":
+                        value = False
+                        attributes[attr] = value
 
         return attributes
 
@@ -613,7 +645,13 @@ class PfSenseGatewaySensor(PfSenseSensor):
             value = gateway[property]
             # cleanse "ms", etc from values
             if property in ["stddev", "delay", "loss"]:
-                value = re.sub("[^0-9\.]*", "", value)
+                if isinstance(value, str):
+                    value = re.sub("[^0-9\.]*", "", value)
+                    if len(value) > 0:
+                        value = float(value)
+
+            if isinstance(value, str) and len(value) < 1:
+                return STATE_UNKNOWN
 
             return value
         except KeyError:

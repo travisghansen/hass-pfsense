@@ -1,11 +1,12 @@
 """Support for tracking for pfSense devices."""
+
 from __future__ import annotations
 
 import logging
 import time
 from typing import Any, Mapping
 
-from homeassistant.components.device_tracker import SOURCE_TYPE_ROUTER
+from homeassistant.components.device_tracker import SourceType
 from homeassistant.components.device_tracker.config_entry import ScannerEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -35,7 +36,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def lookup_mac(mac_vendor_lookup: AsyncMacLookup, mac: str) -> str:
     mac = mac_vendor_lookup.sanitise(mac)
-    if type(mac) == str:
+    if isinstance(mac, str):
         mac = mac.encode("utf8")
     return mac_vendor_lookup.prefixes[mac[:6]].decode("utf8")
 
@@ -54,10 +55,10 @@ async def async_setup_entry(
     mac_vendor_lookup = AsyncMacLookup()
     try:
         await mac_vendor_lookup.update_vendors()
-    except:
+    except Exception:
         try:
             await mac_vendor_lookup.load_vendors()
-        except:
+        except Exception:
             pass
 
     dev_reg = async_get_dev_reg(hass)
@@ -101,7 +102,7 @@ async def async_setup_entry(
             mac_vendor = None
             try:
                 mac_vendor = lookup_mac(mac_vendor_lookup, mac_address)
-            except:
+            except Exception:
                 pass
 
             entity = PfSenseScannerEntity(
@@ -191,7 +192,7 @@ class PfSenseScannerEntity(PfSenseEntity, ScannerEntity):
     @property
     def source_type(self) -> str:
         """Return the source type, eg gps or router, of the device."""
-        return SOURCE_TYPE_ROUTER
+        return SourceType.ROUTER
 
     @property
     def extra_state_attributes(self) -> Mapping[str, Any] | None:
@@ -213,9 +214,9 @@ class PfSenseScannerEntity(PfSenseEntity, ScannerEntity):
             self._extra_state["last_known_ip"] = self._last_known_ip
 
         if self._last_known_connected_time is not None:
-            self._extra_state[
-                "last_known_connected_time"
-            ] = self._last_known_connected_time
+            self._extra_state["last_known_connected_time"] = (
+                self._last_known_connected_time
+            )
 
         return self._extra_state
 
@@ -279,7 +280,7 @@ class PfSenseScannerEntity(PfSenseEntity, ScannerEntity):
         """Return device icon."""
         try:
             return "mdi:lan-connect" if self.is_connected else "mdi:lan-disconnect"
-        except:
+        except Exception:
             return "mdi:lan-disconnect"
 
     @property

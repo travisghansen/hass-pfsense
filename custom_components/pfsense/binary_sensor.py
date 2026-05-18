@@ -1,9 +1,9 @@
 """pfSense integration."""
+
 import logging
 
 from homeassistant.components.binary_sensor import (
-    DEVICE_CLASS_PROBLEM,
-    DEVICE_CLASS_UPDATE,
+    BinarySensorDeviceClass,
     BinarySensorEntity,
     BinarySensorEntityDescription,
 )
@@ -51,7 +51,7 @@ async def async_setup_entry(
             config_entry,
             coordinator,
             BinarySensorEntityDescription(
-                key=f"notices.pending_notices_present",
+                key="notices.pending_notices_present",
                 name="Pending Notices Present",
                 # native_unit_of_measurement=native_unit_of_measurement,
                 icon="mdi:alert",
@@ -126,7 +126,7 @@ class PfSensePendingNoticesPresentBinarySensor(PfSenseBinarySensor):
 
     @property
     def device_class(self):
-        return DEVICE_CLASS_PROBLEM
+        return BinarySensorDeviceClass.PROBLEM
 
     @property
     def extra_state_attributes(self):

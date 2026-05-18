@@ -8,6 +8,7 @@ close_notice:
   # Different fields that your service accepts
   fields:
     entity_id:
+      name: Entity ID
       description: pfSense entity id
       example: "binary_sensor.pfsense_localdomain_pending_notices_present"
 
@@ -31,6 +32,7 @@ file_notice:
   description: Files a notice(s).
   fields:
     entity_id:
+      name: Entity ID
       description: pfSense entity id
       example: "binary_sensor.pfsense_localdomain_pending_notices_present"
 
@@ -87,6 +89,7 @@ start_service:
   description: Starts a service.
   fields:
     entity_id:
+      name: Entity ID
       description: pfSense entity id
       example: "binary_sensor.pfsense_localdomain_pending_notices_present"
     service_name:
@@ -95,6 +98,13 @@ start_service:
       required: true
       advanced: false
       example: "haproxy|dhcp|dpinger|.."
+      default: ""
+    service:
+      name: Service Data
+      description: The json-encoded data of the service.
+      required: false
+      advanced: true
+      example: '{"vpnid": 1, "mode": "server"}'
       default: ""
 
 stop_service:
@@ -102,6 +112,7 @@ stop_service:
   description: Stops a service.
   fields:
     entity_id:
+      name: Entity ID
       description: pfSense entity id
       example: "binary_sensor.pfsense_localdomain_pending_notices_present"
     service_name:
@@ -110,6 +121,13 @@ stop_service:
       required: true
       advanced: false
       example: "haproxy|dhcp|dpinger|.."
+      default: ""
+    service:
+      name: Service Data
+      description: The json-encoded data of the service.
+      required: false
+      advanced: true
+      example: '{"vpnid": 1, "mode": "server"}'
       default: ""
 
 restart_service:
@@ -117,6 +135,7 @@ restart_service:
   description: Restarts a service.
   fields:
     entity_id:
+      name: Entity ID
       description: pfSense entity id
       example: "binary_sensor.pfsense_localdomain_pending_notices_present"
     service_name:
@@ -126,12 +145,27 @@ restart_service:
       advanced: false
       example: "haproxy|dhcp|dpinger|.."
       default: ""
+    only_if_running:
+      name: Only If Running
+      description: Only restart if the service is currently running.
+      required: false
+      advanced: true
+      example: "true|false|1|0"
+      default: false
+    service:
+      name: Service Data
+      description: The json-encoded data of the service.
+      required: false
+      advanced: true
+      example: '{"vpnid": 1, "mode": "server"}'
+      default: ""
 
 reset_state_table:
   name: Reset state table
   description: Force all existing connections to close and reestablish 
   fields:
     entity_id:
+      name: Entity ID
       description: pfSense entity id
       example: "binary_sensor.pfsense_localdomain_pending_notices_present"
 
@@ -140,6 +174,7 @@ kill_states:
   description: Remove all state table entries for source, or from source to destination
   fields:
     entity_id:
+      name: Entity ID
       description: pfSense entity id
       example: "binary_sensor.pfsense_localdomain_pending_notices_present"
 
@@ -164,6 +199,7 @@ system_halt:
   description: Halts the system.
   fields:
     entity_id:
+      name: Entity ID
       description: pfSense entity id
       example: "binary_sensor.pfsense_localdomain_pending_notices_present"
 
@@ -172,6 +208,7 @@ system_reboot:
   description: Reboots the system.
   fields:
     entity_id:
+      name: Entity ID
       description: pfSense entity id
       example: "binary_sensor.pfsense_localdomain_pending_notices_present"
 
@@ -180,6 +217,7 @@ send_wol:
   description: Sends wake-on-lan magic packet.
   fields:
     entity_id:
+      name: Entity ID
       description: pfSense entity id
       example: "binary_sensor.pfsense_localdomain_pending_notices_present"
 
@@ -204,6 +242,7 @@ set_default_gateway:
   description: Set the default gateway for ipv4 and ipv6.
   fields:
     entity_id:
+      name: Entity ID
       description: pfSense entity id
       example: "binary_sensor.pfsense_localdomain_pending_notices_present"
 
@@ -228,6 +267,7 @@ exec_php:
   description: Execute a fully php script.
   fields:
     entity_id:
+      name: Entity ID
       description: pfSense entity id
       example: "binary_sensor.pfsense_localdomain_pending_notices_present"
 
@@ -244,6 +284,7 @@ exec_command:
   description: Execute a command.
   fields:
     entity_id:
+      name: Entity ID
       description: pfSense entity id
       example: "binary_sensor.pfsense_localdomain_pending_notices_present"
 

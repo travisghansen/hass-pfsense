@@ -1,4 +1,5 @@
 """Config flow for pfSense integration."""
+
 import logging
 from urllib.parse import quote_plus, urlparse
 import xmlrpc
@@ -100,6 +101,11 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_VERIFY_SSL: verify_ssl,
                     },
                 )
+
+            # can be when using http instead of https
+            # 2022-08-16 09:43:17.803 ERROR (MainThread) [custom_components.opnsense.config_flow] Unexpected err=RemoteDisconnected('Remote end closed connection without response'), type(err)=<class 'http.client.RemoteDisconnected'>
+            # when proper permissions are not setup
+            # 2022-08-16 09:43:26.680 ERROR (MainThread) [custom_components.opnsense.config_flow] Unexpected err=TypeError('string indices must be integers'), type(err)=<class 'TypeError'>
             except InvalidURL:
                 errors["base"] = "invalid_url_format"
             except xmlrpc.client.Fault as err:
@@ -178,16 +184,15 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry):
         """Get the options flow for this handler."""
-        return OptionsFlowHandler(config_entry)
+        return OptionsFlowHandler()
 
 
 class OptionsFlowHandler(config_entries.OptionsFlow):
     """Handle option flow for pfSense."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+    def __init__(self) -> None:
         """Initialize options flow."""
         self.new_options = None
-        self.config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
         """Handle options flow."""
