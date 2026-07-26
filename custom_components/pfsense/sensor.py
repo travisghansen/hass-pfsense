@@ -31,6 +31,7 @@ from .const import (
     DATA_PACKETS,
     DATA_RATE_PACKETS_PER_SECOND,
     DOMAIN,
+    GATEWAY_DEVICE_UNIQUE_ID,
     SENSOR_TYPES,
 )
 
@@ -48,6 +49,7 @@ async def async_setup_entry(
     def process_entities_callback(hass, config_entry):
         data = hass.data[DOMAIN][config_entry.entry_id]
         coordinator = data[COORDINATOR]
+        gateway_device_unique_id = data[GATEWAY_DEVICE_UNIQUE_ID]
         state = coordinator.data
         resources = [sensor_id for sensor_id in SENSOR_TYPES]
 
@@ -77,6 +79,7 @@ async def async_setup_entry(
             entity = PfSenseStaticKeySensor(
                 config_entry,
                 coordinator,
+                gateway_device_unique_id,
                 SENSOR_TYPES[sensor_type],
                 enabled_default,
             )
@@ -91,6 +94,7 @@ async def async_setup_entry(
             entity = PfSenseFilesystemSensor(
                 config_entry,
                 coordinator,
+                gateway_device_unique_id,
                 SensorEntityDescription(
                     key=f"telemetry.filesystems.{device_clean}",
                     name="Filesystem Used Percentage {}".format(mountpoint_clean),
@@ -115,6 +119,7 @@ async def async_setup_entry(
             entity = PfSenseCarpInterfaceSensor(
                 config_entry,
                 coordinator,
+                gateway_device_unique_id,
                 SensorEntityDescription(
                     key=f"carp.interface.{uniqid}",
                     name="CARP Interface Status {} ({})".format(
@@ -216,6 +221,7 @@ async def async_setup_entry(
                 entity = PfSenseInterfaceSensor(
                     config_entry,
                     coordinator,
+                    gateway_device_unique_id,
                     SensorEntityDescription(
                         key="telemetry.interface.{}.{}".format(
                             interface["ifname"], property
@@ -252,6 +258,7 @@ async def async_setup_entry(
                 entity = PfSenseGatewaySensor(
                     config_entry,
                     coordinator,
+                    gateway_device_unique_id,
                     SensorEntityDescription(
                         key="telemetry.gateway.{}.{}".format(gateway["name"], property),
                         name="Gateway {} {}".format(gateway["name"], property),
@@ -311,6 +318,7 @@ async def async_setup_entry(
                 entity = PfSenseOpenVPNServerSensor(
                     config_entry,
                     coordinator,
+                    gateway_device_unique_id,
                     SensorEntityDescription(
                         key="telemetry.openvpn.servers.{}.{}".format(vpnid, property),
                         name="OpenVPN Server {} ({}) {}".format(
@@ -348,6 +356,7 @@ class PfSenseSensor(PfSenseEntity, SensorEntity):
         self,
         config_entry,
         coordinator: DataUpdateCoordinator,
+        gateway_device_unique_id: str | None,
         entity_description: SensorEntityDescription,
         enabled_default: bool,
     ) -> None:
@@ -355,6 +364,7 @@ class PfSenseSensor(PfSenseEntity, SensorEntity):
         self.config_entry = config_entry
         self.entity_description = entity_description
         self.coordinator = coordinator
+        self._pfsense_gateway_unique_id = gateway_device_unique_id
         self._attr_entity_registry_enabled_default = enabled_default
         self._attr_name = f"{self.pfsense_device_name} {entity_description.name}"
         self._attr_unique_id = slugify(

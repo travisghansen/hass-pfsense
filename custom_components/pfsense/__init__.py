@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import copy
 from datetime import timedelta
 import logging
@@ -20,8 +21,17 @@ from homeassistant.const import (
     CONF_VERIFY_SSL,
 )
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.device_registry import (
+    async_entries_for_config_entry as async_entries_for_device_config_entry,
+    async_get as async_get_device_registry,
+)
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity_registry import async_get
+from homeassistant.helpers.entity_registry import (
+    RegistryEntryDisabler,
+    async_entries_for_config_entry as async_entries_for_entity_config_entry,
+    async_entries_for_device as async_entries_for_entity_device,
+    async_get as async_get_entity_registry,
+)
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -32,6 +42,7 @@ from homeassistant.helpers.update_coordinator import (
 from .const import (
     CONF_DEVICE_TRACKER_ENABLED,
     CONF_DEVICE_TRACKER_SCAN_INTERVAL,
+    CONF_DEVICES,
     CONF_TLS_INSECURE,
     COORDINATOR,
     DEFAULT_DEVICE_TRACKER_ENABLED,
@@ -41,11 +52,21 @@ from .const import (
     DEFAULT_VERIFY_SSL,
     DEVICE_TRACKER_COORDINATOR,
     DOMAIN,
+    GATEWAY_DEVICE_UNIQUE_ID,
     LOADED_PLATFORMS,
     PFSENSE_CLIENT,
     PLATFORMS,
     SHOULD_RELOAD,
+    TRACKED_MACS,
     UNDO_UPDATE_LISTENER,
+)
+from .device import (
+    get_child_device_mac_address,
+    get_existing_gateway_device_unique_id,
+    get_gateway_device_unique_id,
+    get_removable_duplicate_gateway_entity_ids,
+    get_removable_duplicate_gateway_device_ids,
+    remove_device_mac_address_from_lists,
 )
 from .pypfsense import Client as pfSenseClient
 from .services import ServiceRegistrar
@@ -73,6 +94,125 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry):
         hass.async_create_task(hass.config_entries.async_reload(entry.entry_id))
     else:
         hass.data[DOMAIN][entry.entry_id][SHOULD_RELOAD] = True
+
+
+async def _async_remove_duplicate_gateway_devices(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    gateway_device_unique_id: str | None,
+) -> None:
+    """Remove duplicate pfSense gateway devices when they are no longer in use."""
+    if not gateway_device_unique_id:
+        return
+
+    # Yield once so entity/device registry updates triggered during platform setup
+    # can settle before we remove any orphaned duplicate gateway devices.
+    await asyncio.sleep(0)
+
+    device_registry = async_get_device_registry(hass)
+    entity_registry = async_get_entity_registry(hass)
+    devices = async_entries_for_device_config_entry(device_registry, entry.entry_id)
+    entity_device_ids = {
+        entity.device_id
+        for entity in async_entries_for_entity_config_entry(
+            entity_registry, entry.entry_id
+        )
+        if entity.device_id
+    }
+
+    duplicate_device_ids = get_removable_duplicate_gateway_device_ids(
+        devices,
+        entry.entry_id,
+        DOMAIN,
+        gateway_device_unique_id,
+        entity_device_ids,
+    )
+    for device_id in duplicate_device_ids:
+        _LOGGER.info("Removing duplicate pfSense gateway device %s", device_id)
+        device_registry.async_remove_device(device_id)
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    device_entry,
+) -> bool:
+    """Remove a pfSense child device or removable duplicate gateway."""
+    entity_registry = async_get_entity_registry(hass)
+
+    child_device_mac_address = get_child_device_mac_address(
+        device_entry, config_entry.entry_id
+    )
+    if child_device_mac_address is not None:
+        for entity_entry in async_entries_for_entity_device(
+            entity_registry, device_entry.id, include_disabled_entities=True
+        ):
+            entity_registry.async_remove(entity_entry.entity_id)
+
+        configured_mac_addresses, tracked_mac_addresses = (
+            remove_device_mac_address_from_lists(
+                child_device_mac_address,
+                list(config_entry.options.get(CONF_DEVICES, [])),
+                list(config_entry.data.get(TRACKED_MACS, [])),
+            )
+        )
+
+        new_options = dict(config_entry.options)
+        new_data = dict(config_entry.data)
+        options_changed = configured_mac_addresses != new_options.get(CONF_DEVICES, [])
+        data_changed = tracked_mac_addresses != new_data.get(TRACKED_MACS, [])
+
+        if options_changed:
+            new_options[CONF_DEVICES] = configured_mac_addresses
+        if data_changed:
+            new_data[TRACKED_MACS] = tracked_mac_addresses
+
+        if options_changed or data_changed:
+            if DOMAIN in hass.data and config_entry.entry_id in hass.data[DOMAIN]:
+                hass.data[DOMAIN][config_entry.entry_id][SHOULD_RELOAD] = False
+            hass.config_entries.async_update_entry(
+                config_entry,
+                data=new_data,
+                options=new_options,
+            )
+
+        return True
+
+    device_registry = async_get_device_registry(hass)
+    devices = async_entries_for_device_config_entry(
+        device_registry, config_entry.entry_id
+    )
+    gateway_device_unique_id = (
+        hass.data.get(DOMAIN, {})
+        .get(config_entry.entry_id, {})
+        .get(GATEWAY_DEVICE_UNIQUE_ID, config_entry.unique_id)
+    )
+    duplicate_gateway_device_ids = get_removable_duplicate_gateway_device_ids(
+        devices,
+        config_entry.entry_id,
+        DOMAIN,
+        gateway_device_unique_id,
+        # Check all config-entry entities so duplicate gateway devices that still
+        # own stale entity-registry entries can be distinguished from unrelated
+        # device-specific entities during manual removal.
+        {
+            entity.device_id
+            for entity in async_entries_for_entity_config_entry(
+                entity_registry, config_entry.entry_id
+            )
+            if entity.device_id
+        },
+        require_no_entities=False,
+    )
+    if device_entry.id not in duplicate_gateway_device_ids:
+        return False
+
+    for entity_entry in async_entries_for_entity_device(
+        entity_registry, device_entry.id, include_disabled_entities=True
+    ):
+        entity_registry.async_remove(entity_entry.entity_id)
+
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
@@ -152,14 +292,54 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     # Fetch initial data so we have data when entities subscribe
     await coordinator.async_config_entry_first_refresh()
+    device_registry = async_get_device_registry(hass)
+    entity_registry = async_get_entity_registry(hass)
+    devices = async_entries_for_device_config_entry(device_registry, entry.entry_id)
+    entity_device_ids = {
+        entity.device_id
+        for entity in async_entries_for_entity_config_entry(
+            entity_registry, entry.entry_id
+        )
+        if entity.device_id
+    }
+    existing_gateway_device_unique_id = get_existing_gateway_device_unique_id(
+        devices,
+        entry.entry_id,
+        DOMAIN,
+        entity_device_ids,
+        current_unique_id=dict_get(coordinator.data, "system_info.netgate_device_id"),
+        config_entry_unique_id=entry.unique_id,
+    )
+    gateway_device_unique_id = get_gateway_device_unique_id(
+        entry.unique_id,
+        dict_get(coordinator.data, "system_info.netgate_device_id"),
+        existing_gateway_device_unique_id
+        or hass.data[DOMAIN][entry.entry_id].get(GATEWAY_DEVICE_UNIQUE_ID),
+    )
+    hass.data[DOMAIN][entry.entry_id][
+        GATEWAY_DEVICE_UNIQUE_ID
+    ] = gateway_device_unique_id
+    removable_entity_ids = get_removable_duplicate_gateway_entity_ids(
+        devices,
+        async_entries_for_entity_config_entry(entity_registry, entry.entry_id),
+        entry.entry_id,
+        DOMAIN,
+        gateway_device_unique_id,
+        RegistryEntryDisabler.DEVICE,
+    )
+    for entity_id in removable_entity_ids:
+        entity_registry.async_remove(entity_id)
     if device_tracker_enabled:
         # Fetch initial data so we have data when entities subscribe
         await device_tracker_coordinator.async_config_entry_first_refresh()
 
     await hass.config_entries.async_forward_entry_setups(entry, platforms)
+    hass.async_create_task(
+        _async_remove_duplicate_gateway_devices(hass, entry, gateway_device_unique_id)
+    )
 
-    service_registar = ServiceRegistrar(hass)
-    service_registar.async_register()
+    service_registrar = ServiceRegistrar(hass)
+    service_registrar.async_register()
 
     return True
 
@@ -583,7 +763,7 @@ class CoordinatorEntityManager:
                 # del self.entities[entity_unique_id]
 
     async def async_remove_entity(self, entity):
-        registry = await async_get(self.hass)
+        registry = async_get_entity_registry(self.hass)
         if entity.entity_id in registry.entities:
             registry.async_remove(entity.entity_id)
 
@@ -626,7 +806,11 @@ class PfSenseEntity(CoordinatorEntity, RestoreEntity):
 
     @property
     def pfsense_device_unique_id(self):
-        return self._get_pfsense_state_value("system_info.netgate_device_id")
+        return get_gateway_device_unique_id(
+            self.config_entry.unique_id,
+            self._get_pfsense_state_value("system_info.netgate_device_id"),
+            getattr(self, "_pfsense_gateway_unique_id", None),
+        )
 
     def _get_pfsense_state_value(self, path, default=None):
         state = self.coordinator.data

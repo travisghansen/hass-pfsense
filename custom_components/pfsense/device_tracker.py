@@ -27,6 +27,7 @@ from .const import (
     DEFAULT_DEVICE_TRACKER_CONSIDER_HOME,
     DEVICE_TRACKER_COORDINATOR,
     DOMAIN,
+    GATEWAY_DEVICE_UNIQUE_ID,
     SHOULD_RELOAD,
     TRACKED_MACS,
 )
@@ -71,6 +72,7 @@ async def async_setup_entry(
         data = hass.data[DOMAIN][config_entry.entry_id]
         previous_mac_addresses = config_entry.data.get(TRACKED_MACS, [])
         coordinator = data[DEVICE_TRACKER_COORDINATOR]
+        gateway_device_unique_id = data[GATEWAY_DEVICE_UNIQUE_ID]
         state = coordinator.data
         # seems unlikely *all* devices are intended to be monitored
         # disable by default and let users enable specific entries they care about
@@ -109,6 +111,7 @@ async def async_setup_entry(
                 hass,
                 config_entry,
                 coordinator,
+                gateway_device_unique_id,
                 enabled_default,
                 mac_address,
                 mac_vendor,
@@ -150,6 +153,7 @@ class PfSenseScannerEntity(PfSenseEntity, ScannerEntity):
         hass: HomeAssistant,
         config_entry: ConfigEntry,
         coordinator: DataUpdateCoordinator,
+        gateway_device_unique_id: str | None,
         enabled_default: bool,
         mac: str,
         mac_vendor: str,
@@ -158,6 +162,7 @@ class PfSenseScannerEntity(PfSenseEntity, ScannerEntity):
         self.hass = hass
         self.config_entry = config_entry
         self.coordinator = coordinator
+        self._pfsense_gateway_unique_id = gateway_device_unique_id
         self._mac_address = mac
         self._mac_vendor = mac_vendor
         self._last_known_ip = None

@@ -15,7 +15,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import slugify
 
 from . import CoordinatorEntityManager, PfSenseEntity, dict_get
-from .const import COORDINATOR, DOMAIN
+from .const import COORDINATOR, DOMAIN, GATEWAY_DEVICE_UNIQUE_ID
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,10 +31,12 @@ async def async_setup_entry(
     def process_entities_callback(hass, config_entry):
         data = hass.data[DOMAIN][config_entry.entry_id]
         coordinator = data[COORDINATOR]
+        gateway_device_unique_id = data[GATEWAY_DEVICE_UNIQUE_ID]
         entities = []
         entity = PfSenseCarpStatusBinarySensor(
             config_entry,
             coordinator,
+            gateway_device_unique_id,
             BinarySensorEntityDescription(
                 key="carp.status",
                 name="CARP Status",
@@ -50,6 +52,7 @@ async def async_setup_entry(
         entity = PfSensePendingNoticesPresentBinarySensor(
             config_entry,
             coordinator,
+            gateway_device_unique_id,
             BinarySensorEntityDescription(
                 key=f"notices.pending_notices_present",
                 name="Pending Notices Present",
@@ -79,6 +82,7 @@ class PfSenseBinarySensor(PfSenseEntity, BinarySensorEntity):
         self,
         config_entry,
         coordinator: DataUpdateCoordinator,
+        gateway_device_unique_id: str | None,
         entity_description: BinarySensorEntityDescription,
         enabled_default: bool,
     ) -> None:
@@ -86,6 +90,7 @@ class PfSenseBinarySensor(PfSenseEntity, BinarySensorEntity):
         self.config_entry = config_entry
         self.entity_description = entity_description
         self.coordinator = coordinator
+        self._pfsense_gateway_unique_id = gateway_device_unique_id
         self._attr_entity_registry_enabled_default = enabled_default
         self._attr_name = f"{self.pfsense_device_name} {entity_description.name}"
         self._attr_unique_id = slugify(

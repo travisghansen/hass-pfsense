@@ -15,7 +15,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import slugify
 
 from . import CoordinatorEntityManager, PfSenseEntity, dict_get
-from .const import COORDINATOR, DOMAIN
+from .const import COORDINATOR, DOMAIN, GATEWAY_DEVICE_UNIQUE_ID
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,6 +31,7 @@ async def async_setup_entry(
     def process_entities_callback(hass, config_entry):
         data = hass.data[DOMAIN][config_entry.entry_id]
         coordinator = data[COORDINATOR]
+        gateway_device_unique_id = data[GATEWAY_DEVICE_UNIQUE_ID]
         state = coordinator.data
 
         entities = []
@@ -70,6 +71,7 @@ async def async_setup_entry(
                     entity = PfSenseFilterSwitch(
                         config_entry,
                         coordinator,
+                        gateway_device_unique_id,
                         SwitchEntityDescription(
                             key="filter.{}".format(tracker),
                             name="Filter Rule {} ({})".format(tracker, rule["descr"]),
@@ -104,6 +106,7 @@ async def async_setup_entry(
                     entity = PfSenseNatSwitch(
                         config_entry,
                         coordinator,
+                        gateway_device_unique_id,
                         SwitchEntityDescription(
                             key="nat_port_forward.{}".format(tracker),
                             name="NAT Port Forward Rule {} ({})".format(
@@ -144,6 +147,7 @@ async def async_setup_entry(
                     entity = PfSenseNatSwitch(
                         config_entry,
                         coordinator,
+                        gateway_device_unique_id,
                         SwitchEntityDescription(
                             key="nat_outbound.{}".format(tracker),
                             name="NAT Outbound Rule {} ({})".format(
@@ -181,6 +185,7 @@ async def async_setup_entry(
                 entity = PfSenseServiceSwitch(
                     config_entry,
                     coordinator,
+                    gateway_device_unique_id,
                     SwitchEntityDescription(
                         key=key,
                         name=name,
@@ -208,12 +213,14 @@ class PfSenseSwitch(PfSenseEntity, SwitchEntity):
         self,
         config_entry,
         coordinator: DataUpdateCoordinator,
+        gateway_device_unique_id: str | None,
         entity_description: SwitchEntityDescription,
     ) -> None:
         """Initialize the entity."""
         self.config_entry = config_entry
         self.entity_description = entity_description
         self.coordinator = coordinator
+        self._pfsense_gateway_unique_id = gateway_device_unique_id
         self._attr_name = f"{self.pfsense_device_name} {entity_description.name}"
         self._attr_unique_id = slugify(
             f"{self.pfsense_device_unique_id}_{entity_description.key}"

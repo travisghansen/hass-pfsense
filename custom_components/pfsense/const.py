@@ -28,6 +28,7 @@ LOADED_PLATFORMS = "loaded_platforms"
 PFSENSE_CLIENT = "pfsense_client"
 COORDINATOR = "coordinator"
 DEVICE_TRACKER_COORDINATOR = "device_tracker_coordinator"
+GATEWAY_DEVICE_UNIQUE_ID = "gateway_device_unique_id"
 SHOULD_RELOAD = "should_reload"
 TRACKED_MACS = "tracked_macs"
 DEFAULT_SCAN_INTERVAL = 30
