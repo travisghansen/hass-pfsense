@@ -269,6 +269,10 @@ class PfSenseData:
         return self._client.get_config()
 
     @_log_timing
+    def _get_certificates(self):
+        return self._client.get_certificates()
+
+    @_log_timing
     def _get_interfaces(self):
         return self._client.get_interfaces()
 
@@ -336,6 +340,7 @@ class PfSenseData:
                 new_state["firmware_update_info"] = self._get_firmware_update_info()
                 new_state["telemetry"] = self._get_telemetry()
                 new_state["config"] = self._get_config()
+                new_state["certificates"] = self._get_certificates()
                 new_state["interfaces"] = self._get_interfaces()
                 new_state["services"] = self._get_services()
                 new_state["carp_interfaces"] = self._get_carp_interfaces()
@@ -526,6 +531,33 @@ class PfSenseData:
 
                             new_property = f"{property}_{label}"
                             server[new_property] = int(round(value, 0))
+
+                    for client_name in dict_get(
+                        new_state, "telemetry.openvpn.clients", {}
+                    ).keys():
+                        if client_name not in dict_get(
+                            new_state,
+                            "previous_state.telemetry.openvpn.clients",
+                            {},
+                        ).keys():
+                            continue
+
+                        client = new_state["telemetry"]["openvpn"]["clients"][
+                            client_name
+                        ]
+                        previous_client = new_state["previous_state"]["telemetry"][
+                            "openvpn"
+                        ]["clients"][client_name]
+
+                        for property in ["bytes_recv", "bytes_sent"]:
+                            current_value = client[property]
+                            previous_value = previous_client[property]
+                            change = abs(current_value - previous_value)
+                            rate = change / elapsed_time
+                            KBs = rate / 1000
+                            new_property = f"{property}_kilobytes_per_second"
+                            client[new_property] = int(round(KBs, 0))
+
         except BaseException as err:
             # still replace current state as best we can
             self._state = new_state

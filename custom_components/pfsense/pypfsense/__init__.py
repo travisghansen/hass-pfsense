@@ -311,6 +311,39 @@ $toreturn = [
         return response["data"]
 
     @_log_errors
+    def get_certificates(self):
+        """Return parsed info for every CA certificate stored in pfSense."""
+        script = """
+global $config;
+
+$ca_list = [];
+$cas = isset($config["ca"]) && is_array($config["ca"]) ? $config["ca"] : [];
+foreach ($cas as $ca) {
+    $parsed = openssl_x509_parse(base64_decode($ca["crt"]));
+    if (!$parsed) {
+        continue;
+    }
+    $ca_list[] = [
+        "refid"      => $ca["refid"] ?? "",
+        "descr"      => $ca["descr"] ?? "Unknown",
+        "subject_cn" => $parsed["subject"]["CN"] ?? "",
+        "issuer_cn"  => $parsed["issuer"]["CN"] ?? "",
+        "not_after"  => $parsed["validTo_time_t"] ?? 0,
+        "not_before" => $parsed["validFrom_time_t"] ?? 0,
+        "serial"     => $parsed["serialNumberHex"] ?? "",
+    ];
+}
+
+$toreturn = [
+    "data" => [
+        "ca" => $ca_list,
+    ],
+];
+"""
+        response = self._exec_php(script)
+        return response["data"]
+
+    @_log_errors
     def get_interfaces(self):
         return self._get_config_section("interfaces")
 
@@ -1349,6 +1382,34 @@ foreach ($ovpn_servers as $server) {
   $toreturn["openvpn"]["servers"][$vpnid]["connected_client_count"] = $conn_count;
   $toreturn["openvpn"]["servers"][$vpnid]["total_bytes_recv"] = $total_bytes_recv;
   $toreturn["openvpn"]["servers"][$vpnid]["total_bytes_sent"] = $total_bytes_sent;
+}
+
+// OpenVPN clients
+$toreturn["openvpn"]["clients"] = [];
+$ovpn_clients_active = openvpn_get_active_clients();
+$active_by_vpnid = [];
+foreach ($ovpn_clients_active as $c) {
+    $active_by_vpnid[(string) $c["vpnid"]] = $c;
+}
+
+$config_clients = isset($config["openvpn"]["openvpn-client"]) && is_array($config["openvpn"]["openvpn-client"])
+    ? $config["openvpn"]["openvpn-client"]
+    : [];
+foreach ($config_clients as $cc) {
+    $vpnid = (string) $cc["vpnid"];
+    $active = $active_by_vpnid[$vpnid] ?? null;
+    $toreturn["openvpn"]["clients"][$vpnid] = [
+        "vpnid"        => $vpnid,
+        "name"         => $cc["description"] ?? "",
+        "status"       => $active ? ($active["status"] ?? "down") : "down",
+        "bytes_recv"   => (int) ($active ? ($active["bytes_recv"] ?? 0) : 0),
+        "bytes_sent"   => (int) ($active ? ($active["bytes_sent"] ?? 0) : 0),
+        "connect_time" => $active ? ($active["connect_time"] ?? "") : "",
+        "caref"        => $cc["caref"] ?? "",
+        "server_addr"  => $cc["server_addr"] ?? "",
+        "server_port"  => (string) ($cc["server_port"] ?? ""),
+        "protocol"     => $cc["protocol"] ?? "",
+    ];
 }
 """
         data = self._exec_php(script)

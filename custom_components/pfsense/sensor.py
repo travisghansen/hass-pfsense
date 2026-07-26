@@ -1,7 +1,9 @@
 """Provides a sensor to track various status aspects of pfSense."""
 
 import logging
+import math
 import re
+from datetime import datetime, timezone
 
 from awesomeversion import AwesomeVersion
 from homeassistant.components.sensor import (
@@ -324,6 +326,73 @@ async def async_setup_entry(
                     enabled_default,
                 )
                 entities.append(entity)
+
+        # openvpn clients
+        for vpnid in dict_get(state, "telemetry.openvpn.clients", {}).keys():
+            client = state["telemetry"]["openvpn"]["clients"][vpnid]
+            for property in [
+                "status",
+                "bytes_recv",
+                "bytes_recv_kilobytes_per_second",
+                "bytes_sent",
+                "bytes_sent_kilobytes_per_second",
+            ]:
+                state_class = None
+                native_unit_of_measurement = None
+                icon = None
+                enabled_default = True
+
+                if "_kilobytes_per_second" in property:
+                    state_class = SensorStateClass.MEASUREMENT
+
+                if "_kilobytes_per_second" in property:
+                    native_unit_of_measurement = UnitOfDataRate.KILOBYTES_PER_SECOND
+                elif "bytes" in property:
+                    native_unit_of_measurement = UnitOfInformation.BYTES
+
+                if "bytes" in property:
+                    icon = "mdi:server-network"
+                elif property == "status":
+                    icon = "mdi:check-network-outline"
+                else:
+                    icon = "mdi:gauge"
+
+                entity = PfSenseOpenVPNClientSensor(
+                    config_entry,
+                    coordinator,
+                    SensorEntityDescription(
+                        key="telemetry.openvpn.clients.{}.{}".format(vpnid, property),
+                        name="OpenVPN Client {} ({}) {}".format(
+                            vpnid, client["name"], property
+                        ),
+                        native_unit_of_measurement=native_unit_of_measurement,
+                        icon=icon,
+                        state_class=state_class,
+                    ),
+                    enabled_default,
+                )
+                entities.append(entity)
+
+        # CA certificates
+        for ca in dict_get(state, "certificates.ca", []):
+            refid = ca.get("refid", "")
+            descr = ca.get("descr", "Unknown")
+            if not refid:
+                continue
+
+            entity = PfSenseCACertificateSensor(
+                config_entry,
+                coordinator,
+                SensorEntityDescription(
+                    key=f"certificates.ca.{refid}.days_until_expiry",
+                    name=f"CA Certificate {descr} Days Until Expiry",
+                    native_unit_of_measurement="days",
+                    icon="mdi:certificate",
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+                True,
+            )
+            entities.append(entity)
 
         return entities
 
@@ -708,3 +777,116 @@ class PfSenseOpenVPNServerSensor(PfSenseSensor):
             return server[property]
         except KeyError:
             return STATE_UNKNOWN
+
+
+class PfSenseOpenVPNClientSensor(PfSenseSensor):
+    def _pfsense_get_client_property_name(self):
+        return self.entity_description.key.split(".")[4]
+
+    def _pfsense_get_client_vpnid(self):
+        return self.entity_description.key.split(".")[3]
+
+    def _pfsense_get_client(self):
+        state = self.coordinator.data
+        vpnid = self._pfsense_get_client_vpnid()
+        for client_vpnid in dict_get(state, "telemetry.openvpn.clients", {}).keys():
+            if vpnid == client_vpnid:
+                return state["telemetry"]["openvpn"]["clients"][vpnid]
+        return None
+
+    @property
+    def available(self) -> bool:
+        client = self._pfsense_get_client()
+        property = self._pfsense_get_client_property_name()
+        if client is None or property not in client.keys():
+            return False
+        return super().available
+
+    @property
+    def extra_state_attributes(self):
+        attributes = {}
+        client = self._pfsense_get_client()
+        if client is None:
+            return attributes
+
+        for attr in ["vpnid", "name", "caref", "server_addr", "server_port", "protocol", "connect_time"]:
+            if attr in client:
+                attributes[attr] = client[attr]
+
+        return attributes
+
+    @property
+    def icon(self):
+        property = self._pfsense_get_client_property_name()
+        if property == "status" and self.native_value not in ("up", "connected"):
+            return "mdi:close-network-outline"
+        return super().icon
+
+    @property
+    def native_value(self):
+        client = self._pfsense_get_client()
+        property = self._pfsense_get_client_property_name()
+
+        if client is None:
+            return STATE_UNKNOWN
+
+        try:
+            return client[property]
+        except KeyError:
+            return STATE_UNKNOWN
+
+
+class PfSenseCACertificateSensor(PfSenseSensor):
+    def _pfsense_get_refid(self):
+        # key format: certificates.ca.<refid>.days_until_expiry
+        return self.entity_description.key.split(".")[2]
+
+    def _pfsense_get_ca(self):
+        refid = self._pfsense_get_refid()
+        for ca in dict_get(self.coordinator.data, "certificates.ca", []):
+            if ca.get("refid") == refid:
+                return ca
+        return None
+
+    @property
+    def available(self) -> bool:
+        return self._pfsense_get_ca() is not None and super().available
+
+    @property
+    def extra_state_attributes(self):
+        ca = self._pfsense_get_ca()
+        if ca is None:
+            return {}
+        not_after = ca.get("not_after", 0)
+        expires_at = (
+            datetime.fromtimestamp(not_after, tz=timezone.utc).isoformat()
+            if not_after
+            else None
+        )
+        return {
+            "expires_at": expires_at,
+            "subject_cn": ca.get("subject_cn"),
+            "issuer_cn": ca.get("issuer_cn"),
+            "serial": ca.get("serial"),
+        }
+
+    @property
+    def icon(self):
+        value = self.native_value
+        if isinstance(value, int):
+            if value <= 0:
+                return "mdi:certificate-outline"
+            if value <= 30:
+                return "mdi:certificate-alert"
+        return "mdi:certificate"
+
+    @property
+    def native_value(self):
+        ca = self._pfsense_get_ca()
+        if ca is None:
+            return STATE_UNKNOWN
+        not_after = ca.get("not_after", 0)
+        if not not_after:
+            return STATE_UNKNOWN
+        delta = datetime.fromtimestamp(not_after, tz=timezone.utc) - datetime.now(tz=timezone.utc)
+        return math.floor(delta.total_seconds() / 86400)
