@@ -259,8 +259,8 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 if len(mac) < 1:
                     continue
 
-                hostname = entry.get("hostname").strip("?")
-                ip = entry.get("ip-address")
+                hostname = (entry.get("hostname") or "").strip("?")
+                ip = entry.get("ip-address") or ""
 
                 label = f"{mac} - {hostname.strip()} ({ip.strip()})"
                 entries[mac] = label

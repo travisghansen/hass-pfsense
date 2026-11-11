@@ -130,7 +130,7 @@ class ServiceRegistrar:
         self.hass.services.async_register(
             domain=DOMAIN,
             service=SERVICE_RESET_STATE_TABLE,
-            schema={},
+            schema=cv.make_entity_service_schema({}),
             service_func=_async_send_service,
         )
 
