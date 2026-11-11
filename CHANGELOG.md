@@ -1,3 +1,13 @@
+# v0.6.8
+
+Released 2026-11-11
+
+- continued as a fork of travisghansen/hass-pfsense (upstream appears abandoned)
+- fix integration version always shown as 0.1.0 in Home Assistant: the
+  manifest version now matches the release, and the release workflow stamps
+  the tag version into `manifest.json` and publishes `pfsense.zip` for HACS
+- update codeowners, documentation and issue tracker links to the fork
+
 # v0.6.7
 
 Released 2025-12-17

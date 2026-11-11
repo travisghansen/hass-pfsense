@@ -1,12 +1,16 @@
 {
   "domain": "pfsense",
   "name": "pfSense",
-  "codeowners": ["@travisghansen"],
+  "codeowners": [
+    "@coaxx77"
+  ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/travisghansen/hass-pfsense",
+  "documentation": "https://github.com/coaxx77/hass-pfsense",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/travisghansen/hass-pfsense/issues",
-  "requirements": ["mac-vendor-lookup>=0.1.11"],
-  "version": "0.1.0"
+  "issue_tracker": "https://github.com/coaxx77/hass-pfsense/issues",
+  "requirements": [
+    "mac-vendor-lookup>=0.1.11"
+  ],
+  "version": "0.6.8"
 }

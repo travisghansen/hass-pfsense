@@ -1,7 +1,18 @@
-[![Build Status](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2Ftravisghansen%2Fhass-pfsense%2Fbadge%3Fref%3Dmain&style=for-the-badge)](https://actions-badge.atrox.dev/travisghansen/hass-pfsense/goto?ref=main)
-[![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge)](https://github.com/hacs/integration)
+[![Release](https://img.shields.io/github/v/release/coaxx77/hass-pfsense?style=for-the-badge)](https://github.com/coaxx77/hass-pfsense/releases)
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://github.com/hacs/integration)
 
 # hass-pfsense
+
+> **Fork notice:** This is a maintained fork of
+> [travisghansen/hass-pfsense](https://github.com/travisghansen/hass-pfsense),
+> originally created by [@travisghansen](https://github.com/travisghansen).
+> The upstream project appears to be no longer actively maintained (last
+> release: v0.6.7, 2025-12-17), so development continues here. All credit for
+> the original work goes to the upstream author; the project remains licensed
+> under the Apache License 2.0 (see `LICENSE`).
+>
+> Please report issues for this fork at
+> [coaxx77/hass-pfsense/issues](https://github.com/coaxx77/hass-pfsense/issues).
 
 Join `pfSense` with `home-assistant`!
 
@@ -16,9 +27,13 @@ Initial development was done against `pfSense` `2.5.2` and `home-assistant`
 
 # installation
 
-Add the repo to your `hacs` installation or clone the directory manually. Once
-the integration is installed be sure to restart `hass` and refresh the UI in
-the browser.
+Add `https://github.com/coaxx77/hass-pfsense` to `hacs` as a custom repository
+(category: Integration) or clone the directory manually. Once the integration
+is installed be sure to restart `hass` and refresh the UI in the browser.
+
+If you are switching from the upstream repository, remove the upstream
+repository from `hacs` first (your config entries are kept, as the integration
+domain `pfsense` is unchanged), then add this fork and restart `hass`.
 
 # configuration
 
