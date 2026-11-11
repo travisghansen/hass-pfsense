@@ -2,13 +2,13 @@
   "domain": "pfsense",
   "name": "pfSense",
   "codeowners": [
-    "@coaxx77"
+    "@betterbitsbites"
   ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/coaxx77/hass-pfsense",
+  "documentation": "https://github.com/betterbitsbites/hass-pfsense",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/coaxx77/hass-pfsense/issues",
+  "issue_tracker": "https://github.com/betterbitsbites/hass-pfsense/issues",
   "requirements": [
     "mac-vendor-lookup>=0.1.11"
   ],

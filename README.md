@@ -1,4 +1,4 @@
-[![Release](https://img.shields.io/github/v/release/coaxx77/hass-pfsense?style=for-the-badge)](https://github.com/coaxx77/hass-pfsense/releases)
+[![Release](https://img.shields.io/github/v/release/betterbitsbites/hass-pfsense?style=for-the-badge)](https://github.com/betterbitsbites/hass-pfsense/releases)
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://github.com/hacs/integration)
 
 # hass-pfsense
@@ -12,7 +12,7 @@
 > under the Apache License 2.0 (see `LICENSE`).
 >
 > Please report issues for this fork at
-> [coaxx77/hass-pfsense/issues](https://github.com/coaxx77/hass-pfsense/issues).
+> [betterbitsbites/hass-pfsense/issues](https://github.com/betterbitsbites/hass-pfsense/issues).
 
 Join `pfSense` with `home-assistant`!
 
@@ -27,7 +27,7 @@ Initial development was done against `pfSense` `2.5.2` and `home-assistant`
 
 # installation
 
-Add `https://github.com/coaxx77/hass-pfsense` to `hacs` as a custom repository
+Add `https://github.com/betterbitsbites/hass-pfsense` to `hacs` as a custom repository
 (category: Integration) or clone the directory manually. Once the integration
 is installed be sure to restart `hass` and refresh the UI in the browser.
 
