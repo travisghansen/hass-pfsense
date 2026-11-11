@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import copy
 from datetime import timedelta
 import logging
@@ -10,7 +11,6 @@ import re
 import time
 from typing import Callable
 
-import async_timeout
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_PASSWORD,
@@ -93,7 +93,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     async def async_update_data():
         """Fetch data from pfSense."""
-        async with async_timeout.timeout(scan_interval - 1):
+        async with asyncio.timeout(scan_interval - 1):
             await hass.async_add_executor_job(lambda: data.update())
 
             if not data.state:
@@ -121,7 +121,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
         async def async_update_device_tracker_data():
             """Fetch data from pfSense."""
-            async with async_timeout.timeout(device_tracker_scan_interval - 1):
+            async with asyncio.timeout(device_tracker_scan_interval - 1):
                 await hass.async_add_executor_job(
                     lambda: device_tracker_data.update({"scope": "device_tracker"})
                 )
@@ -416,7 +416,8 @@ class PfSenseData:
                             f"previous_state.telemetry.interfaces.{interface_name}",
                         )
                         if previous_interface is None:
-                            break
+                            # new interface, nothing to compare against yet
+                            continue
 
                         for property in [
                             "inbytes",
@@ -433,10 +434,19 @@ class PfSenseData:
                             "outpktsblock",
                         ]:
 
-                            current_parent_value = interface[property]
-                            previous_parent_value = previous_interface[property]
-                            change = abs(current_parent_value - previous_parent_value)
-                            rate = change / elapsed_time
+                            current_parent_value = interface.get(property)
+                            previous_parent_value = previous_interface.get(property)
+                            if (
+                                current_parent_value is None
+                                or previous_parent_value is None
+                            ):
+                                continue
+                            change = current_parent_value - previous_parent_value
+                            if change < 0 or elapsed_time <= 0:
+                                # counter reset (reboot, interface reset, wrap)
+                                # keep the last rate instead of a bogus spike
+                                change = None
+                            rate = None if change is None else change / elapsed_time
 
                             value = 0
                             if "pkts" in property:
@@ -446,11 +456,13 @@ class PfSenseData:
                                 label = "kilobytes_per_second"
                                 # 1 Byte = 8 bits
                                 # 1 byte is equal to 0.001 kilobytes
-                                KBs = rate / 1000
+                                KBs = None if rate is None else rate / 1000
                                 # Kbs = KBs * 8
                                 value = KBs
 
                             new_property = f"{property}_{label}"
+                            if value is None:
+                                value = previous_interface.get(new_property, 0)
                             interface[new_property] = int(round(value, 0))
 
                             continue
@@ -507,10 +519,19 @@ class PfSenseData:
                             "total_bytes_sent",
                         ]:
 
-                            current_parent_value = server[property]
-                            previous_parent_value = previous_server[property]
-                            change = abs(current_parent_value - previous_parent_value)
-                            rate = change / elapsed_time
+                            current_parent_value = server.get(property)
+                            previous_parent_value = previous_server.get(property)
+                            if (
+                                current_parent_value is None
+                                or previous_parent_value is None
+                            ):
+                                continue
+                            change = current_parent_value - previous_parent_value
+                            if change < 0 or elapsed_time <= 0:
+                                # totals are summed over the *current* connections,
+                                # so they drop when a client disconnects
+                                change = None
+                            rate = None if change is None else change / elapsed_time
 
                             value = 0
                             if "pkts" in property:
@@ -520,11 +541,13 @@ class PfSenseData:
                                 label = "kilobytes_per_second"
                                 # 1 Byte = 8 bits
                                 # 1 byte is equal to 0.001 kilobytes
-                                KBs = rate / 1000
+                                KBs = None if rate is None else rate / 1000
                                 # Kbs = KBs * 8
                                 value = KBs
 
                             new_property = f"{property}_{label}"
+                            if value is None:
+                                value = previous_server.get(new_property, 0)
                             server[new_property] = int(round(value, 0))
         except BaseException as err:
             # still replace current state as best we can

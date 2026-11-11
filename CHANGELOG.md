@@ -7,6 +7,20 @@ Released 2026-11-11
   manifest version now matches the release, and the release workflow stamps
   the tag version into `manifest.json` and publishes `pfsense.zip` for HACS
 - update codeowners, documentation and issue tracker links to the fork
+- fix PHP payloads breaking on `'` and `\` (e.g. notices or commands containing
+  an apostrophe); data is now passed base64 encoded
+- fix socket timeout being set process-wide via `socket.setdefaulttimeout()`,
+  which raced across threads and could change the timeout of all of Home
+  Assistant; the timeout now applies per XML-RPC connection
+- fix interface rates not being calculated for remaining interfaces when a
+  new interface appears
+- fix bogus traffic rates after counter resets (pfSense reboot, interface
+  reset, OpenVPN client disconnect); the last rate is kept instead
+- escape shell arguments for `kill_states` and ARP entry deletion
+- fix `reset_state_table` service schema to accept an entity target
+- fix crash when an ARP entry has no hostname (device tracker, options flow)
+- replace deprecated `async_timeout` with `asyncio.timeout`
+- fix Python `SyntaxWarning: invalid escape sequence` on import
 
 # v0.6.7
 

@@ -253,7 +253,7 @@ class PfSenseScannerEntity(PfSenseEntity, ScannerEntity):
         entry = self._get_pfsense_arp_entry()
         if entry is None:
             return None
-        value = entry.get("hostname").strip("?")
+        value = (entry.get("hostname") or "").strip("?")
         if len(value) > 0:
             self._last_known_hostname = value
             return value

@@ -3,10 +3,10 @@ note that the xmlrpc api only allows a single request to be handled at a time
 likely via some sort of mutex.
 """
 
+import base64
 import json
 import logging
 import re
-import socket
 import ssl
 from urllib.parse import quote_plus, urlparse
 from xml.parsers.expat import ExpatError
@@ -32,6 +32,16 @@ def dict_get(data: dict, path: str, default=None):
     return result
 
 
+def _php_data(data) -> str:
+    """Encode data for embedding into a PHP script.
+
+    The JSON is base64 encoded because it is placed inside a single-quoted PHP
+    string: a raw ' would terminate the string (breaking the script) and \\
+    sequences would be altered by PHP before json_decode sees them.
+    """
+    return base64.b64encode(json.dumps(data).encode("utf-8")).decode("ascii")
+
+
 def normalize_service_data(service):
     service_data_type = type(service).__name__
     if service_data_type == "dict":
@@ -47,6 +57,32 @@ def normalize_service_data(service):
         raise TypeError("invalid datatype for variable `service`: " + service_data_type)
 
     return service
+
+
+class _TimeoutTransport(xmlrpc.client.Transport):
+    """Transport applying a socket timeout to its own connection only."""
+
+    def __init__(self, timeout=DEFAULT_TIMEOUT, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._timeout = timeout
+
+    def make_connection(self, host):
+        conn = super().make_connection(host)
+        conn.timeout = self._timeout
+        return conn
+
+
+class _TimeoutSafeTransport(xmlrpc.client.SafeTransport):
+    """SafeTransport applying a socket timeout to its own connection only."""
+
+    def __init__(self, timeout=DEFAULT_TIMEOUT, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._timeout = timeout
+
+    def make_connection(self, host):
+        conn = super().make_connection(host)
+        conn.timeout = self._timeout
+        return conn
 
 
 class Client(object):
@@ -71,7 +107,7 @@ class Client(object):
         self._url_parts = urlparse(self._url)
 
     # https://stackoverflow.com/questions/64983392/python-multiple-patch-gives-http-client-cannotsendrequest-request-sent
-    def _get_proxy(self):
+    def _get_proxy(self, timeout=DEFAULT_TIMEOUT):
         # https://docs.python.org/3/library/xmlrpc.client.html#module-xmlrpc.client
         # https://stackoverflow.com/questions/30461969/disable-default-certificate-verification-in-python-2-7-9
         context = None
@@ -85,22 +121,21 @@ class Client(object):
         # set to True if necessary during development
         verbose = False
 
-        proxy = xmlrpc.client.ServerProxy(self._url, context=context, verbose=verbose)
+        if self._url_parts.scheme == "https":
+            transport = _TimeoutSafeTransport(timeout, context=context)
+        else:
+            transport = _TimeoutTransport(timeout)
+
+        proxy = xmlrpc.client.ServerProxy(
+            self._url, transport=transport, verbose=verbose
+        )
         return proxy
 
     def _apply_timeout(func):
-        def inner(*args, **kwargs):
-            response = None
-            # timout applies to each recv() call, not the whole request
-            default_timeout = socket.getdefaulttimeout()
-            try:
-                socket.setdefaulttimeout(DEFAULT_TIMEOUT)
-                response = func(*args, **kwargs)
-            finally:
-                socket.setdefaulttimeout(default_timeout)
-            return response
-
-        return inner
+        # kept for compatibility, the timeout is applied per connection by the
+        # transport (see _get_proxy); socket.setdefaulttimeout() was process
+        # global and racy across Home Assistant's executor threads
+        return func
 
     def _log_errors(func):
         def inner(*args, **kwargs):
@@ -156,13 +191,13 @@ $toreturn["real"] = json_encode($toreturn_real);
 """.format(
             script
         )
-        response = self._get_proxy().pfsense.exec_php(script)
+        response = self._get_proxy(timeout=None).pfsense.exec_php(script)
         response = json.loads(response["real"])
         return response
 
     def _exec_command(self, command, background=False):
         script = """
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 if ($data["background"]) {{
     $ret = mwexec_bg($data["command"]);    
 }}
@@ -174,7 +209,7 @@ $toreturn = [
   "data" => $ret,
 ];
 """.format(
-            json.dumps({"command": command, "background": background})
+            _php_data({"command": command, "background": background})
         )
         response = self._exec_php(script)
         return response["data"]
@@ -227,13 +262,13 @@ $toreturn = [
     @_log_errors
     def pid_is_running(self, pid):
         script = """
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $running = posix_kill($data["pid"],0);
 $toreturn = [
   "data" => $running,
 ];
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "pid": pid,
                 }
@@ -488,13 +523,13 @@ require_once '/etc/inc/util.inc';
 global $xmlrpclockkey;
 unlock($xmlrpclockkey);
 
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $resolve_hostnames = $data["resolve_hostnames"];
 $toreturn = [
   "data" => system_get_arp_table($resolve_hostnames),
 ];
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "resolve_hostnames": resolve_hostnames,
                 }
@@ -516,7 +551,7 @@ $toreturn = [
 require_once '/etc/inc/config.inc';
 global $config;
 
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $key = $data["key"];
 $config['gateways'][$key] = $data["gateway"];
 
@@ -541,7 +576,7 @@ $toreturn = [
   "data" => $retval
 ];
 """.format(
-            json.dumps({"key": key, "gateway": gateway})
+            _php_data({"key": key, "gateway": gateway})
         )
 
         self._exec_php(script)
@@ -599,14 +634,14 @@ unlock($xmlrpclockkey);
 
 require_once '/etc/inc/service-utils.inc';
 
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $service_name = $data["service_name"];
 $toreturn = [
   // always returns true, so mostly useless at this point
   "data" => is_service_enabled($service_name),
 ];
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "service_name": service_name,
                     "service": service,
@@ -630,7 +665,7 @@ unlock($xmlrpclockkey);
 
 require_once '/etc/inc/service-utils.inc';
 
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $service_name = $data["service_name"];
 $service = $data["service"];
 if (!$service) {{
@@ -660,7 +695,7 @@ else {{
 }}
 
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "service_name": service_name,
                     "service": service,
@@ -678,7 +713,7 @@ else {{
         script = """
 require_once '/etc/inc/service-utils.inc';
 
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $service_name = $data["service_name"];
 $service = $data["service"];
 if (!$service) {{
@@ -712,7 +747,7 @@ $toreturn = [
   "data" => true,
 ];
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "service_name": service_name,
                     "service": service,
@@ -729,7 +764,7 @@ $toreturn = [
         script = """
 require_once '/etc/inc/service-utils.inc';
 
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $service_name = $data["service_name"];
 $service = $data["service"];
 if (!$service) {{
@@ -762,7 +797,7 @@ $toreturn = [
   "data" => true,
 ];
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "service_name": service_name,
                     "service": service,
@@ -779,7 +814,7 @@ $toreturn = [
         script = """
 require_once '/etc/inc/service-utils.inc';
 
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $service_name = $data["service_name"];
 $service = $data["service"];
 if (!$service) {{
@@ -806,7 +841,7 @@ $toreturn = [
   "data" => true,
 ];
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "service_name": service_name,
                     "service": service,
@@ -823,7 +858,7 @@ $toreturn = [
         script = """
 require_once '/etc/inc/service-utils.inc';
 
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $service_name = $data["service_name"];
 $service = $data["service"];
 if (!$service) {{
@@ -856,7 +891,7 @@ $toreturn = [
   "data" => true,
 ];
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "service_name": service_name,
                     "service": service,
@@ -877,7 +912,7 @@ require_once '/etc/inc/util.inc';
 global $xmlrpclockkey;
 unlock($xmlrpclockkey);
 
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 
 $dns_lookups = null;
 if ($data["dns_lookups"] === true || $data["dns_lookups"] === false) {{
@@ -888,7 +923,7 @@ $toreturn = [
   "data" => system_get_dhcpleases($dns_lookups),
 ];
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "dns_lookups": dns_lookups,
                 }
@@ -951,7 +986,7 @@ require_once '/etc/inc/util.inc';
 global $xmlrpclockkey;
 unlock($xmlrpclockkey);
 
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $uniqueid = $data["uniqueid"];
 $carp_if = "_vip{{$uniqueid}}";
 $status = get_carp_interface_status($carp_if);
@@ -959,7 +994,7 @@ $toreturn = [
   "data" => $status,
 ];
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "uniqueid": uniqueid,
                 }
@@ -1006,14 +1041,14 @@ $toreturn = [
         if len(ip) < 1:
             return
         script = """
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $ip = trim($data["ip"]);
-$ret = mwexec("arp -d " . $ip, true);
+$ret = mwexec("arp -d " . escapeshellarg($ip), true);
 $toreturn = [
   "data" => $ret,
 ];
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "ip": ip,
                 }
@@ -1031,14 +1066,14 @@ require_once '/etc/inc/util.inc';
 global $xmlrpclockkey;
 unlock($xmlrpclockkey);
 
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $ip = $data["ip"];
 $do_ping = $data["do_ping"];
 $toreturn = [
   "data" => arp_get_mac_by_ip($ip, $do_ping),
 ];
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "ip": ip,
                     "do_ping": do_ping,
@@ -1064,13 +1099,13 @@ mwexec("/sbin/pfctl -F states");
 
         if destination is None:
             script = """
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $source = $data["source"];
 
-mwexec("/sbin/pfctl -k $source");
+mwexec("/sbin/pfctl -k " . escapeshellarg($source));
 
 """.format(
-                json.dumps(
+                _php_data(
                     {
                         "source": source,
                     }
@@ -1081,14 +1116,14 @@ mwexec("/sbin/pfctl -k $source");
 
         else:
             script = """
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $source = $data["source"];
 $destination = $data["destination"];
 
-mwexec("/sbin/pfctl -k $source -k $destination");
+mwexec("/sbin/pfctl -k " . escapeshellarg($source) . " -k " . escapeshellarg($destination));
 
 """.format(
-                json.dumps(
+                _php_data(
                     {
                         "source": source,
                         "destination": destination,
@@ -1106,7 +1141,7 @@ mwexec("/sbin/pfctl -k $source -k $destination");
         type = fsck = perform an fsck on next boot
         """
         script = """
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $type = $data["type"];
 $type = strtolower($type);
 
@@ -1131,7 +1166,7 @@ $toreturn = [
   "data" => true,
 ];
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "type": type,
                 }
@@ -1164,7 +1199,7 @@ $toreturn = [
         """
 
         script = """
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $if = $data["interface"];
 $mac = $data["mac"];
 function send_wol($if, $mac) {{
@@ -1182,7 +1217,7 @@ $toreturn = [
   "data" => $value,
 ];
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "interface": interface,
                     "mac": mac,
@@ -1218,7 +1253,7 @@ global $config;
 global $g;
 
 function stripalpha($s) {
-  return preg_replace("/\D/", "", $s);
+  return preg_replace("/\\D/", "", $s);
 }
 
 $mbuf = null;
@@ -1374,13 +1409,13 @@ require_once '/etc/inc/util.inc';
 global $xmlrpclockkey;
 unlock($xmlrpclockkey);
 
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $category = $data["category"];
 $toreturn = [
   "data" => are_notices_pending($category),
 ];
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "category": category,
                 }
@@ -1399,7 +1434,7 @@ require_once '/etc/inc/util.inc';
 global $xmlrpclockkey;
 unlock($xmlrpclockkey);
 
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $category = $data["category"];
 $value = get_notices($category);
 if (!$value) {{
@@ -1409,7 +1444,7 @@ $toreturn = [
   "data" => $value,
 ];
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "category": category,
                 }
@@ -1447,7 +1482,7 @@ $toreturn = [
         """
 
         script = """
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $id = $data["id"];
 $notice = $data["notice"];
 $category = $data["category"];
@@ -1460,7 +1495,7 @@ $toreturn = [
   "data" => $value,
 ];
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "id": id,
                     "notice": notice,
@@ -1481,14 +1516,14 @@ $toreturn = [
         id = "all" to wipe everything
         """
         script = """
-$data = json_decode('{}', true);
+$data = json_decode(base64_decode('{}'), true);
 $id = $data["id"];
 close_notice($id);
 $toreturn = [
   "data" => true,
 ];
 """.format(
-            json.dumps(
+            _php_data(
                 {
                     "id": id,
                 }
