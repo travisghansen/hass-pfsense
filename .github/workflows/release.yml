@@ -5,11 +5,32 @@ on:
     tags:
       - "v*.*.*"
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
+
+      # Home Assistant shows the version from manifest.json. Stamp the tag
+      # version into it so the installed integration always reports the
+      # release it came from (previously it was stuck at 0.1.0).
+      - name: Set version in manifest.json
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          jq --arg v "$VERSION" '.version = $v' custom_components/pfsense/manifest.json > manifest.tmp
+          mv manifest.tmp custom_components/pfsense/manifest.json
+          cat custom_components/pfsense/manifest.json
+
+      - name: Build release zip
+        run: |
+          cd custom_components/pfsense
+          zip -r "$GITHUB_WORKSPACE/pfsense.zip" . -x '*/__pycache__/*'
+
       - name: Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
+        with:
+          files: pfsense.zip
