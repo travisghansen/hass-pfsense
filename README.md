@@ -31,9 +31,11 @@ Add `https://github.com/betterbitsbites/hass-pfsense` to `hacs` as a custom repo
 (category: Integration) or clone the directory manually. Once the integration
 is installed be sure to restart `hass` and refresh the UI in the browser.
 
-If you are switching from the upstream repository, remove the upstream
-repository from `hacs` first (your config entries are kept, as the integration
-domain `pfsense` is unchanged), then add this fork and restart `hass`.
+If you are switching from the upstream repository
+(`travisghansen/hass-pfsense`), follow [MIGRATION.md](MIGRATION.md). The
+Marketplace won't let you install the fork over it or remove it while the
+integration is set up, and **Delete and uninstall** would delete your pfSense
+setup with all devices and entities.
 
 # configuration
 
