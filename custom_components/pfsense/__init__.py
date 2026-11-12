@@ -23,6 +23,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity_registry import async_get
 from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.util import slugify
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -611,6 +612,25 @@ class CoordinatorEntityManager:
             registry.async_remove(entity.entity_id)
 
 
+_DEVICE_ID_WARNED: set[str] = set()
+
+
+def _warn_device_id_changed(entry: ConfigEntry, live_id) -> None:
+    """Log once per config entry that pfSense reports another device id."""
+    if entry.entry_id in _DEVICE_ID_WARNED:
+        return
+    _DEVICE_ID_WARNED.add(entry.entry_id)
+    _LOGGER.warning(
+        "pfSense %s reports Netgate Device ID %s, but it was set up with %s. "
+        "Keeping the original ID so entities are not duplicated. The Netgate "
+        "Device ID usually changes when a network interface gets a new MAC "
+        "address on every boot (e.g. USB ethernet or LTE modems)",
+        entry.title,
+        live_id or "(none)",
+        entry.unique_id,
+    )
+
+
 class PfSenseEntity(CoordinatorEntity, RestoreEntity):
     """base entity for pfSense"""
 
@@ -649,7 +669,27 @@ class PfSenseEntity(CoordinatorEntity, RestoreEntity):
 
     @property
     def pfsense_device_unique_id(self):
-        return self._get_pfsense_state_value("system_info.netgate_device_id")
+        """Stable id of the firewall, used for the device and all unique ids.
+
+        pfSense derives the Netgate Device ID from the NIC MAC addresses. Some
+        NICs (USB ethernet, LTE modems, BMC interfaces) get a random MAC on
+        every boot, so the reported id can change after a reboot. Using it
+        directly created a complete new set of entities and a new device each
+        time (travisghansen/hass-pfsense#227).
+
+        The config entry unique id is the slugified Netgate Device ID from when
+        the integration was set up and never changes, so prefer that. The live
+        value is only used while it matches, because the device registry
+        identifier has always been the unslugified value.
+        """
+        live_id = self._get_pfsense_state_value("system_info.netgate_device_id")
+        entry_id = self.config_entry.unique_id
+        if not entry_id:
+            return live_id
+        if live_id and slugify(live_id) == entry_id:
+            return live_id
+        _warn_device_id_changed(self.config_entry, live_id)
+        return entry_id
 
     def _get_pfsense_state_value(self, path, default=None):
         state = self.coordinator.data
