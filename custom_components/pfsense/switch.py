@@ -1,6 +1,7 @@
 """pfSense integration."""
 
 import logging
+import re
 
 from homeassistant.components.switch import (
     SwitchDeviceClass,
@@ -18,6 +19,11 @@ from . import CoordinatorEntityManager, PfSenseEntity, dict_get
 from .const import COORDINATOR, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
+
+
+RULE_SWITCH_UNIQUE_ID = re.compile(
+    r"_(?P<category>filter|nat_port_forward|nat_outbound)_\d+$"
+)
 
 
 async def async_setup_entry(
@@ -199,6 +205,10 @@ async def async_setup_entry(
         config_entry,
         process_entities_callback,
         async_add_entities,
+        # rule switches are keyed by the rule's tracker (filter) or creation
+        # time (nat); rules that were deleted or re-created with a new tracker
+        # must not leave their switches behind
+        stale_entity_pattern=RULE_SWITCH_UNIQUE_ID,
     )
     cem.process_entities()
 

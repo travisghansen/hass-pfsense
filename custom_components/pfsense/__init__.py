@@ -21,7 +21,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.entity_registry import async_get
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -565,7 +565,19 @@ class CoordinatorEntityManager:
         config_entry: ConfigEntry,
         process_entities_callback: Callable,
         async_add_entities: AddEntitiesCallback,
+        stale_entity_pattern: re.Pattern | None = None,
     ) -> None:
+        """Manage dynamically created entities.
+
+        stale_entity_pattern: unique ids matching this pattern belong to
+        objects that can disappear from pfSense (e.g. firewall rules). Its
+        named group "category" groups them (e.g. filter, nat_outbound).
+        Registry entries matching the pattern that pfSense no longer reports
+        are removed, but only for categories that currently have at least one
+        entity, so an incomplete read of the configuration never removes a
+        whole category.
+        """
+        self.stale_entity_pattern = stale_entity_pattern
         self.hass = hass
         self.coordinator = coordinator
         self.config_entry = config_entry
@@ -595,20 +607,45 @@ class CoordinatorEntityManager:
                 # print(f"{unique_id} already registered")
                 pass
 
-        # check for missing entities
-        for entity_unique_id in self.entity_unique_ids:
-            if entity_unique_id not in i_entity_unqiue_ids:
-                pass
-                # print("should remove entity: " + str(self.entities[entity_unique_id].entry_id))
-                # print("candidate to remove entity: " + str(entity_unique_id))
-                # self.async_remove_entity(self.entities[entity_unique_id])
-                # self.entity_unique_ids.remove(entity_unique_id)
-                # del self.entities[entity_unique_id]
+        if self.stale_entity_pattern is not None:
+            self._remove_stale_entities(i_entity_unqiue_ids)
 
-    async def async_remove_entity(self, entity):
-        registry = await async_get(self.hass)
-        if entity.entity_id in registry.entities:
-            registry.async_remove(entity.entity_id)
+    @callback
+    def _remove_stale_entities(self, current_unique_ids: set) -> None:
+        """Remove registry entries of objects that no longer exist in pfSense."""
+        pattern = self.stale_entity_pattern
+        present_categories = {
+            match.group("category")
+            for unique_id in current_unique_ids
+            if (match := pattern.search(unique_id))
+        }
+        if not present_categories:
+            return
+
+        registry = er.async_get(self.hass)
+        removed = 0
+        for entry in er.async_entries_for_config_entry(
+            registry, self.config_entry.entry_id
+        ):
+            unique_id = entry.unique_id or ""
+            match = pattern.search(unique_id)
+            if (
+                match is None
+                or match.group("category") not in present_categories
+                or unique_id in current_unique_ids
+            ):
+                continue
+            registry.async_remove(entry.entity_id)
+            self.entity_unique_ids.discard(unique_id)
+            self.entities.pop(unique_id, None)
+            removed += 1
+
+        if removed:
+            _LOGGER.info(
+                "Removed %s entities of %s that no longer exist in pfSense",
+                removed,
+                self.config_entry.title,
+            )
 
 
 class PfSenseEntity(CoordinatorEntity, RestoreEntity):
