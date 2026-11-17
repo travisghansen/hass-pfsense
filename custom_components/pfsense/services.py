@@ -13,6 +13,7 @@ from .const import (
     SERVICE_EXEC_COMMAND,
     SERVICE_EXEC_PHP,
     SERVICE_FILE_NOTICE,
+    SERVICE_KILL_RULE_STATES,
     SERVICE_KILL_STATES,
     SERVICE_RESET_STATE_TABLE,
     SERVICE_RESTART_SERVICE,
@@ -141,6 +142,19 @@ class ServiceRegistrar:
                 {
                     vol.Required("source"): vol.Any(cv.string),
                     vol.Optional("destination"): vol.Any(cv.string),
+                }
+            ),
+            service_func=_async_send_service,
+        )
+
+        self.hass.services.async_register(
+            domain=DOMAIN,
+            service=SERVICE_KILL_RULE_STATES,
+            schema=cv.make_entity_service_schema(
+                {
+                    vol.Required("tracker"): vol.All(
+                        vol.Coerce(str), vol.Match(r"^[1-9][0-9]*\Z")
+                    ),
                 }
             ),
             service_func=_async_send_service,
