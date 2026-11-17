@@ -1,279 +1,222 @@
-"""The pfSense component."""
+import logging
 
-from __future__ import annotations
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity_platform import async_get_platforms
+from homeassistant.helpers.service import entity_service_call
+import voluptuous as vol
 
-from typing import Final
-
-from homeassistant.components.sensor import (
-    SensorDeviceClass,
-    SensorEntityDescription,
-    SensorStateClass,
+from .const import (
+    DOMAIN,
+    SERVICE_CLOSE_NOTICE,
+    SERVICE_EXEC_COMMAND,
+    SERVICE_EXEC_PHP,
+    SERVICE_FILE_NOTICE,
+    SERVICE_KILL_RULE_STATES,
+    SERVICE_KILL_STATES,
+    SERVICE_RESET_STATE_TABLE,
+    SERVICE_RESTART_SERVICE,
+    SERVICE_SEND_WOL,
+    SERVICE_SET_DEFAULT_GATEWAY,
+    SERVICE_START_SERVICE,
+    SERVICE_STOP_SERVICE,
+    SERVICE_SYSTEM_HALT,
+    SERVICE_SYSTEM_REBOOT,
 )
-from homeassistant.const import (
-    PERCENTAGE,
-    UnitOfFrequency,
-    UnitOfInformation,
-    UnitOfTemperature,
-    UnitOfTime,
-)
 
-DEFAULT_USERNAME = "admin"
-DOMAIN = "pfsense"
+_LOGGER = logging.getLogger(__name__)
 
-UNDO_UPDATE_LISTENER = "undo_update_listener"
+_data = set()
 
-PLATFORMS = ["sensor", "switch", "device_tracker", "binary_sensor", "update"]
-LOADED_PLATFORMS = "loaded_platforms"
 
-PFSENSE_CLIENT = "pfsense_client"
-COORDINATOR = "coordinator"
-DEVICE_TRACKER_COORDINATOR = "device_tracker_coordinator"
-SHOULD_RELOAD = "should_reload"
-TRACKED_MACS = "tracked_macs"
-DEFAULT_SCAN_INTERVAL = 30
-CONF_TLS_INSECURE = "tls_insecure"
-DEFAULT_TLS_INSECURE = False
-DEFAULT_VERIFY_SSL = True
+def async_get_entities(hass: HomeAssistant) -> dict[str, Entity]:
+    """Get entities for a domain."""
+    entities: dict[str, Entity] = {}
+    for platform in async_get_platforms(hass, DOMAIN):
+        entities.update(platform.entities)
+    return entities
 
-CONF_DEVICE_TRACKER_ENABLED = "device_tracker_enabled"
-DEFAULT_DEVICE_TRACKER_ENABLED = False
 
-CONF_DEVICE_TRACKER_SCAN_INTERVAL = "device_tracker_scan_interval"
-DEFAULT_DEVICE_TRACKER_SCAN_INTERVAL = 150
+class ServiceRegistrar:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+    ) -> None:
+        """Initialize with hass object."""
+        self.hass = hass
 
-CONF_DEVICE_TRACKER_CONSIDER_HOME = "device_tracker_consider_home"
-DEFAULT_DEVICE_TRACKER_CONSIDER_HOME = 0
+    @callback
+    def async_register(self):
+        # services do not need to be reloaded for every config_entry
+        if "loaded" in _data:
+            return
 
-CONF_DEVICES = "devices"
+        _data.add("loaded")
 
-COUNT = "count"
+        # Setup services
+        async def _async_send_service(call: ServiceCall):
+            await entity_service_call(
+                self.hass, async_get_entities(self.hass), f"service_{call.service}", call
+            )
 
-# pulled from upnp component
-BYTES_RECEIVED = "bytes_received"
-BYTES_SENT = "bytes_sent"
-PACKETS_RECEIVED = "packets_received"
-PACKETS_SENT = "packets_sent"
-DATA_PACKETS = "packets"
-DATA_RATE_PACKETS_PER_SECOND = f"{DATA_PACKETS}/{UnitOfTime.SECONDS}"
+        self.hass.services.async_register(
+            domain=DOMAIN,
+            service=SERVICE_CLOSE_NOTICE,
+            schema=cv.make_entity_service_schema(
+                {
+                    vol.Optional("id", default="all"): vol.Any(
+                        cv.positive_int, cv.string
+                    ),
+                }
+            ),
+            service_func=_async_send_service,
+        )
 
-ICON_MEMORY = "mdi:memory"
+        self.hass.services.async_register(
+            domain=DOMAIN,
+            service=SERVICE_FILE_NOTICE,
+            schema=cv.make_entity_service_schema(
+                {
+                    vol.Required("id"): vol.Any(cv.string),
+                    vol.Required("notice"): vol.Any(cv.string),
+                    vol.Optional("category", default="HASS"): vol.Any(cv.string),
+                    vol.Optional("url", default=""): vol.Any(cv.string),
+                    vol.Optional("priority", default=1): cv.positive_int,
+                    vol.Optional("local_only", default=False): cv.boolean,
+                }
+            ),
+            service_func=_async_send_service,
+        )
 
-SENSOR_TYPES: Final[dict[str, SensorEntityDescription]] = {
-    # pfstate
-    "telemetry.pfstate.used": SensorEntityDescription(
-        key="telemetry.pfstate.used",
-        name="pf State Table Used",
-        native_unit_of_measurement=COUNT,
-        icon="mdi:table-network",
-        state_class=SensorStateClass.MEASUREMENT,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    "telemetry.pfstate.total": SensorEntityDescription(
-        key="telemetry.pfstate.total",
-        name="pf State Table Total",
-        native_unit_of_measurement=COUNT,
-        icon="mdi:table-network",
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    "telemetry.pfstate.used_percent": SensorEntityDescription(
-        key="telemetry.pfstate.used_percent",
-        name="pf State Table Used Percentage",
-        native_unit_of_measurement=PERCENTAGE,
-        icon="mdi:table-network",
-        state_class=SensorStateClass.MEASUREMENT,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    # mbuf
-    "telemetry.mbuf.used": SensorEntityDescription(
-        key="telemetry.mbuf.used",
-        name="Memory Buffers Used",
-        native_unit_of_measurement=UnitOfInformation.BYTES,
-        icon=ICON_MEMORY,
-        state_class=SensorStateClass.MEASUREMENT,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    "telemetry.mbuf.total": SensorEntityDescription(
-        key="telemetry.mbuf.total",
-        name="Memory Buffers Total",
-        native_unit_of_measurement=UnitOfInformation.BYTES,
-        icon=ICON_MEMORY,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    "telemetry.mbuf.used_percent": SensorEntityDescription(
-        key="telemetry.mbuf.used_percent",
-        name="Memory Buffers Used Percentage",
-        native_unit_of_measurement=PERCENTAGE,
-        icon=ICON_MEMORY,
-        state_class=SensorStateClass.MEASUREMENT,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    # memory with state_class due to being less static
-    "telemetry.memory.usermem": SensorEntityDescription(
-        key="telemetry.memory.usermem",
-        name="Memory Usermem",
-        native_unit_of_measurement=UnitOfInformation.BYTES,
-        icon=ICON_MEMORY,
-        state_class=SensorStateClass.MEASUREMENT,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    "telemetry.memory.swap_reserved": SensorEntityDescription(
-        key="telemetry.memory.swap_reserved",
-        name="Memory Swap Reserved",
-        native_unit_of_measurement=UnitOfInformation.BYTES,
-        icon=ICON_MEMORY,
-        state_class=SensorStateClass.MEASUREMENT,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    # memory without state_class due to being generally static
-    "telemetry.memory.physmem": SensorEntityDescription(
-        key="telemetry.memory.physmem",
-        name="Memory Physmem",
-        native_unit_of_measurement=UnitOfInformation.BYTES,
-        icon=ICON_MEMORY,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    "telemetry.memory.realmem": SensorEntityDescription(
-        key="telemetry.memory.realmem",
-        name="Memory Realmem",
-        native_unit_of_measurement=UnitOfInformation.BYTES,
-        icon=ICON_MEMORY,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    "telemetry.memory.swap_total": SensorEntityDescription(
-        key="telemetry.memory.swap_total",
-        name="Memory Swap Total",
-        native_unit_of_measurement=UnitOfInformation.BYTES,
-        icon=ICON_MEMORY,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    # memory percentages
-    "telemetry.memory.swap_used_percent": SensorEntityDescription(
-        key="telemetry.memory.swap_used_percent",
-        name="Memory Swap Used Percentage",
-        native_unit_of_measurement=PERCENTAGE,
-        icon=ICON_MEMORY,
-        state_class=SensorStateClass.MEASUREMENT,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    "telemetry.memory.used_percent": SensorEntityDescription(
-        key="telemetry.memory.used_percent",
-        name="Memory Used Percentage",
-        native_unit_of_measurement=PERCENTAGE,
-        icon=ICON_MEMORY,
-        state_class=SensorStateClass.MEASUREMENT,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    # cpu
-    "telemetry.cpu.used_percent": SensorEntityDescription(
-        key="telemetry.cpu.used_percent",
-        name="CPU Usage",
-        native_unit_of_measurement=PERCENTAGE,
-        icon="mdi:speedometer-medium",
-        state_class=SensorStateClass.MEASUREMENT,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    "telemetry.cpu.frequency.current": SensorEntityDescription(
-        key="telemetry.cpu.frequency.current",
-        name="CPU Frequency Current",
-        native_unit_of_measurement=UnitOfFrequency.HERTZ,
-        icon="mdi:speedometer-medium",
-        state_class=SensorStateClass.MEASUREMENT,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    "telemetry.cpu.frequency.max": SensorEntityDescription(
-        key="telemetry.cpu.frequency.max",
-        name="CPU Frequency Max",
-        native_unit_of_measurement=UnitOfFrequency.HERTZ,
-        icon="mdi:speedometer",
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    "telemetry.cpu.count": SensorEntityDescription(
-        key="telemetry.cpu.count",
-        name="CPU Count",
-        native_unit_of_measurement=COUNT,
-        icon="mdi:speedometer-medium",
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    "telemetry.system.load_average.one_minute": SensorEntityDescription(
-        key="telemetry.system.load_average.one_minute",
-        name="System Load Average One Minute",
-        # native_unit_of_measurement=PERCENTAGE,
-        icon="mdi:speedometer-slow",
-        state_class=SensorStateClass.MEASUREMENT,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    "telemetry.system.load_average.five_minute": SensorEntityDescription(
-        key="telemetry.system.load_average.five_minute",
-        name="System Load Average Five Minute",
-        # native_unit_of_measurement=PERCENTAGE,
-        icon="mdi:speedometer-slow",
-        state_class=SensorStateClass.MEASUREMENT,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    "telemetry.system.load_average.fifteen_minute": SensorEntityDescription(
-        key="telemetry.system.load_average.fifteen_minute",
-        name="System Load Average Fifteen Minute",
-        # native_unit_of_measurement=PERCENTAGE,
-        icon="mdi:speedometer-slow",
-        state_class=SensorStateClass.MEASUREMENT,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    # system
-    "telemetry.system.temp": SensorEntityDescription(
-        key="telemetry.system.temp",
-        name="System Temperature",
-        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
-        device_class=SensorDeviceClass.TEMPERATURE,
-        icon="mdi:thermometer",
-        state_class=SensorStateClass.MEASUREMENT,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    "telemetry.system.boottime": SensorEntityDescription(
-        key="telemetry.system.boottime",
-        name="System Boottime",
-        # native_unit_of_measurement=TIME_SECONDS,
-        device_class=SensorDeviceClass.TIMESTAMP,
-        icon="mdi:clock-outline",
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    # dhcp
-    "dhcp_stats.leases.total": SensorEntityDescription(
-        key="dhcp_stats.leases.total",
-        name="DHCP Leases Total",
-        native_unit_of_measurement="clients",
-        icon="mdi:ip-network-outline",
-        state_class=SensorStateClass.MEASUREMENT,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    "dhcp_stats.leases.online": SensorEntityDescription(
-        key="dhcp_stats.leases.online",
-        name="DHCP Leases Online",
-        native_unit_of_measurement="clients",
-        icon="mdi:ip-network-outline",
-        state_class=SensorStateClass.MEASUREMENT,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-    "dhcp_stats.leases.idle_offline": SensorEntityDescription(
-        key="dhcp_stats.leases.idle_offline",
-        name="DHCP Leases Idle/Offline",
-        native_unit_of_measurement="clients",
-        icon="mdi:ip-network-outline",
-        state_class=SensorStateClass.MEASUREMENT,
-        # entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    ),
-}
+        self.hass.services.async_register(
+            domain=DOMAIN,
+            service=SERVICE_START_SERVICE,
+            schema=cv.make_entity_service_schema(
+                {
+                    vol.Required("service_name"): vol.Any(cv.string),
+                    vol.Optional("service"): vol.Any(cv.string),
+                }
+            ),
+            service_func=_async_send_service,
+        )
 
-SERVICE_CLOSE_NOTICE = "close_notice"
-SERVICE_FILE_NOTICE = "file_notice"
-SERVICE_START_SERVICE = "start_service"
-SERVICE_STOP_SERVICE = "stop_service"
-SERVICE_RESTART_SERVICE = "restart_service"
-SERVICE_RESET_STATE_TABLE = "reset_state_table"
-SERVICE_KILL_STATES = "kill_states"
-SERVICE_KILL_RULE_STATES = "kill_rule_states"
-SERVICE_SYSTEM_HALT = "system_halt"
-SERVICE_SYSTEM_REBOOT = "system_reboot"
-SERVICE_SEND_WOL = "send_wol"
-SERVICE_SET_DEFAULT_GATEWAY = "set_default_gateway"
-SERVICE_EXEC_PHP = "exec_php"
-SERVICE_EXEC_COMMAND = "exec_command"
+        self.hass.services.async_register(
+            domain=DOMAIN,
+            service=SERVICE_STOP_SERVICE,
+            schema=cv.make_entity_service_schema(
+                {
+                    vol.Required("service_name"): vol.Any(cv.string),
+                    vol.Optional("service"): vol.Any(cv.string),
+                }
+            ),
+            service_func=_async_send_service,
+        )
+
+        self.hass.services.async_register(
+            domain=DOMAIN,
+            service=SERVICE_RESTART_SERVICE,
+            schema=cv.make_entity_service_schema(
+                {
+                    vol.Required("service_name"): vol.Any(cv.string),
+                    vol.Optional("only_if_running"): vol.Any(
+                        cv.positive_int, cv.string, cv.boolean
+                    ),
+                    vol.Optional("service"): vol.Any(cv.string),
+                }
+            ),
+            service_func=_async_send_service,
+        )
+
+        self.hass.services.async_register(
+            domain=DOMAIN,
+            service=SERVICE_RESET_STATE_TABLE,
+            schema={},
+            service_func=_async_send_service,
+        )
+
+        self.hass.services.async_register(
+            domain=DOMAIN,
+            service=SERVICE_KILL_STATES,
+            schema=cv.make_entity_service_schema(
+                {
+                    vol.Required("source"): vol.Any(cv.string),
+                    vol.Optional("destination"): vol.Any(cv.string),
+                }
+            ),
+            service_func=_async_send_service,
+        )
+
+        self.hass.services.async_register(
+            domain=DOMAIN,
+            service=SERVICE_KILL_RULE_STATES,
+            schema=cv.make_entity_service_schema(
+                {
+                    vol.Required("tracker"): vol.All(
+                        vol.Coerce(str), vol.Match(r"^[1-9][0-9]*\Z")
+                    ),
+                }
+            ),
+            service_func=_async_send_service,
+        )
+
+        self.hass.services.async_register(
+            domain=DOMAIN,
+            service=SERVICE_SYSTEM_HALT,
+            schema=cv.make_entity_service_schema({}),
+            service_func=_async_send_service,
+        )
+
+        self.hass.services.async_register(
+            domain=DOMAIN,
+            service=SERVICE_SYSTEM_REBOOT,
+            schema=cv.make_entity_service_schema({}),
+            service_func=_async_send_service,
+        )
+
+        self.hass.services.async_register(
+            domain=DOMAIN,
+            service=SERVICE_SEND_WOL,
+            schema=cv.make_entity_service_schema(
+                {
+                    vol.Required("interface"): vol.Any(cv.string),
+                    vol.Required("mac"): vol.Any(cv.string),
+                }
+            ),
+            service_func=_async_send_service,
+        )
+
+        self.hass.services.async_register(
+            domain=DOMAIN,
+            service=SERVICE_SET_DEFAULT_GATEWAY,
+            schema=cv.make_entity_service_schema(
+                {
+                    vol.Required("gateway"): vol.Any(cv.string),
+                    vol.Required("ip_version"): vol.Any(cv.string),
+                }
+            ),
+            service_func=_async_send_service,
+        )
+
+        self.hass.services.async_register(
+            domain=DOMAIN,
+            service=SERVICE_EXEC_COMMAND,
+            schema=cv.make_entity_service_schema(
+                {
+                    vol.Required("command"): vol.Any(cv.string),
+                    vol.Optional("background"): cv.boolean,
+                }
+            ),
+            service_func=_async_send_service,
+        )
+
+        self.hass.services.async_register(
+            domain=DOMAIN,
+            service=SERVICE_EXEC_PHP,
+            schema=cv.make_entity_service_schema(
+                {
+                    vol.Required("script"): vol.Any(cv.string),
+                }
+            ),
+            service_func=_async_send_service,
+        )
