@@ -194,6 +194,21 @@ kill_states:
       example: "192.168.0.1/24"
       default: ""
 
+kill_rule_states:
+  name: Kill rule states
+  description: Remove all states created by a firewall rule, using its tracking ID. Does not disable the rule.
+  fields:
+    entity_id:
+      name: Entity ID
+      description: pfSense entity id
+      example: "binary_sensor.pfsense_localdomain_pending_notices_present"
+
+    tracker:
+      name: Rule tracking ID
+      description: Positive numeric tracking ID shown when hovering over the rule's States counter in pfSense (not its row number)
+      required: true
+      example: "1730000000"
+
 system_halt:
   name: Halt system
   description: Halts the system.

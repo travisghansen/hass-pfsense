@@ -1099,6 +1099,28 @@ mwexec("/sbin/pfctl -k $source -k $destination");
             return None
 
     @_log_errors
+    def kill_rule_states(self, tracker):
+        tracker = str(tracker)
+        if re.fullmatch(r"[1-9][0-9]*", tracker) is None:
+            raise ValueError("tracker must be a positive numeric rule tracking ID")
+
+        script = """
+require_once('/etc/inc/filter.inc');
+$data = json_decode('{}', true);
+$label = make_rule_label_string($data["tracker"], RULE_LABEL_KEY_IDENTIFIER, false);
+$toreturn = [
+    "status" => mwexec("/sbin/pfctl -k label -k " . escapeshellarg($label)),
+];
+""".format(json.dumps({"tracker": tracker}))
+        response = self._exec_php(script)
+        if response["status"] != 0:
+            raise RuntimeError(
+                "Failed to kill states for rule {}: pfctl exited with status {}".format(
+                    tracker, response["status"]
+                )
+            )
+
+    @_log_errors
     def system_reboot(self, type="normal"):
         """
         type = normal = simple reboot

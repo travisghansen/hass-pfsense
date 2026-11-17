@@ -693,6 +693,10 @@ class PfSenseEntity(CoordinatorEntity, RestoreEntity):
         client = self._get_pfsense_client()
         client.kill_states(source, destination)
 
+    def service_kill_rule_states(self, tracker: str):
+        client = self._get_pfsense_client()
+        client.kill_rule_states(tracker)
+
     def service_system_halt(self):
         client = self._get_pfsense_client()
         client.system_halt()
