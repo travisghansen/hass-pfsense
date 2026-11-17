@@ -149,6 +149,11 @@ data:
   source: "0.0.0.0/0"
   destination: "192.168.0.1/24"
 
+service: pfsense.kill_rule_states
+data:
+  entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
+  tracker: "1730000000"
+
 service: pfsense.start_service
 data:
   entity_id: binary_sensor.pfsense_localdomain_pending_notices_present
