@@ -50,37 +50,103 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     # bumping this is what triggers async_migrate_entry for the component
     VERSION = 2
 
+    async def _async_validate_input(self, user_input):
+        """Validate connection details and return (data, system_info, errors)."""
+        errors = {}
+        username = user_input.get(CONF_USERNAME, DEFAULT_USERNAME)
+        password = user_input.get(CONF_PASSWORD)
+        try:
+            url = user_input[CONF_URL].strip()
+            # ParseResult(
+            #     scheme='', netloc='', path='f', params='', query='', fragment=''
+            # )
+            url_parts = urlparse(url)
+            if len(url_parts.scheme) < 1:
+                raise InvalidURL()
+
+            if len(url_parts.netloc) < 1:
+                raise InvalidURL()
+
+            # remove any path etc details
+            url = f"{url_parts.scheme}://{url_parts.netloc}"
+            verify_ssl = user_input.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL)
+
+            client = Client(url, username, password, {"verify_ssl": verify_ssl})
+            system_info = await self.hass.async_add_executor_job(
+                client.get_system_info
+            )
+
+            data = {
+                CONF_URL: url,
+                CONF_PASSWORD: password,
+                CONF_USERNAME: username,
+                CONF_VERIFY_SSL: verify_ssl,
+            }
+            return data, system_info, errors
+
+        # can be when using http instead of https
+        # 2022-08-16 09:43:17.803 ERROR (MainThread) [custom_components.opnsense.config_flow] Unexpected err=RemoteDisconnected('Remote end closed connection without response'), type(err)=<class 'http.client.RemoteDisconnected'>
+        # when proper permissions are not setup
+        # 2022-08-16 09:43:26.680 ERROR (MainThread) [custom_components.opnsense.config_flow] Unexpected err=TypeError('string indices must be integers'), type(err)=<class 'TypeError'>
+        except InvalidURL:
+            errors["base"] = "invalid_url_format"
+        except xmlrpc.client.Fault as err:
+            if "Invalid username or password" in str(err):
+                errors["base"] = "invalid_auth"
+            elif "Authentication failed: not enough privileges" in str(err):
+                errors["base"] = "privilege_missing"
+            else:
+                message = cleanse_sensitive_data(
+                    f"Unexpected {err=}, {type(err)=}", [username, password]
+                )
+                _LOGGER.error(message)
+                errors["base"] = "cannot_connect"
+        except xmlrpc.client.ProtocolError as err:
+            if "307 Temporary Redirect" in str(err):
+                errors["base"] = "url_redirect"
+            elif "301 Moved Permanently" in str(err):
+                errors["base"] = "url_redirect"
+            else:
+                message = cleanse_sensitive_data(
+                    f"Unexpected {err=}, {type(err)=}", [username, password]
+                )
+                _LOGGER.error(message)
+                errors["base"] = "cannot_connect"
+        except OSError as err:
+            # bad response from pfSense when creds are valid but authorization is
+            # not sufficient non-admin users must have 'System - HA node sync'
+            # privilege
+            if "unsupported XML-RPC protocol" in str(err):
+                errors["base"] = "privilege_missing"
+            elif "timed out" in str(err):
+                errors["base"] = "connect_timeout"
+            elif "SSL:" in str(err):
+                """OSError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1129)"""
+                errors["base"] = "cannot_connect_ssl"
+            else:
+                message = cleanse_sensitive_data(
+                    f"Unexpected {err=}, {type(err)=}", [username, password]
+                )
+                _LOGGER.error(message)
+                errors["base"] = "unknown"
+        except BaseException as err:
+            message = cleanse_sensitive_data(
+                f"Unexpected {err=}, {type(err)=}", [username, password]
+            )
+            _LOGGER.error(message)
+            errors["base"] = "unknown"
+
+        return None, None, errors
+
     # gets invoked without user input initially
     # when user submits has user_input
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
         errors = {}
         if user_input is not None:
-            try:
+            data, system_info, errors = await self._async_validate_input(user_input)
+            if not errors:
                 name = user_input.get(CONF_NAME, False) or None
-
-                url = user_input[CONF_URL].strip()
-                # ParseResult(
-                #     scheme='', netloc='', path='f', params='', query='', fragment=''
-                # )
-                url_parts = urlparse(url)
-                if len(url_parts.scheme) < 1:
-                    raise InvalidURL()
-
-                if len(url_parts.netloc) < 1:
-                    raise InvalidURL()
-
-                # remove any path etc details
-                url = f"{url_parts.scheme}://{url_parts.netloc}"
-                username = user_input.get(CONF_USERNAME, DEFAULT_USERNAME)
-                password = user_input[CONF_PASSWORD]
-                verify_ssl = user_input.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL)
-
-                client = Client(url, username, password, {"verify_ssl": verify_ssl})
-                system_info = await self.hass.async_add_executor_job(
-                    client.get_system_info
-                )
-
                 if name is None:
                     name = "{}.{}".format(
                         system_info["hostname"], system_info["domain"]
@@ -92,67 +158,7 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 )
                 self._abort_if_unique_id_configured()
 
-                return self.async_create_entry(
-                    title=name,
-                    data={
-                        CONF_URL: url,
-                        CONF_PASSWORD: password,
-                        CONF_USERNAME: username,
-                        CONF_VERIFY_SSL: verify_ssl,
-                    },
-                )
-
-            # can be when using http instead of https
-            # 2022-08-16 09:43:17.803 ERROR (MainThread) [custom_components.opnsense.config_flow] Unexpected err=RemoteDisconnected('Remote end closed connection without response'), type(err)=<class 'http.client.RemoteDisconnected'>
-            # when proper permissions are not setup
-            # 2022-08-16 09:43:26.680 ERROR (MainThread) [custom_components.opnsense.config_flow] Unexpected err=TypeError('string indices must be integers'), type(err)=<class 'TypeError'>
-            except InvalidURL:
-                errors["base"] = "invalid_url_format"
-            except xmlrpc.client.Fault as err:
-                if "Invalid username or password" in str(err):
-                    errors["base"] = "invalid_auth"
-                elif "Authentication failed: not enough privileges" in str(err):
-                    errors["base"] = "privilege_missing"
-                else:
-                    message = cleanse_sensitive_data(
-                        f"Unexpected {err=}, {type(err)=}", [username, password]
-                    )
-                    _LOGGER.error(message)
-                    errors["base"] = "cannot_connect"
-            except xmlrpc.client.ProtocolError as err:
-                if "307 Temporary Redirect" in str(err):
-                    errors["base"] = "url_redirect"
-                elif "301 Moved Permanently" in str(err):
-                    errors["base"] = "url_redirect"
-                else:
-                    message = cleanse_sensitive_data(
-                        f"Unexpected {err=}, {type(err)=}", [username, password]
-                    )
-                    _LOGGER.error(message)
-                    errors["base"] = "cannot_connect"
-            except OSError as err:
-                # bad response from pfSense when creds are valid but authorization is
-                # not sufficient non-admin users must have 'System - HA node sync'
-                # privilege
-                if "unsupported XML-RPC protocol" in str(err):
-                    errors["base"] = "privilege_missing"
-                elif "timed out" in str(err):
-                    errors["base"] = "connect_timeout"
-                elif "SSL:" in str(err):
-                    """OSError: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1129)"""
-                    errors["base"] = "cannot_connect_ssl"
-                else:
-                    message = cleanse_sensitive_data(
-                        f"Unexpected {err=}, {type(err)=}", [username, password]
-                    )
-                    _LOGGER.error(message)
-                    errors["base"] = "unknown"
-            except BaseException as err:
-                message = cleanse_sensitive_data(
-                    f"Unexpected {err=}, {type(err)=}", [username, password]
-                )
-                _LOGGER.error(message)
-                errors["base"] = "unknown"
+                return self.async_create_entry(title=name, data=data)
 
         if not user_input:
             user_input = {}
@@ -175,6 +181,49 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
+
+    async def async_step_reconfigure(self, user_input=None):
+        """Allow changing the URL / credentials of an existing entry."""
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        errors = {}
+        if user_input is not None:
+            user_input = dict(user_input)
+            # an empty password keeps the currently stored one
+            if not user_input.get(CONF_PASSWORD):
+                user_input[CONF_PASSWORD] = entry.data.get(CONF_PASSWORD)
+
+            data, system_info, errors = await self._async_validate_input(user_input)
+            if not errors:
+                if entry.unique_id and entry.unique_id != slugify(
+                    system_info["netgate_device_id"]
+                ):
+                    errors["base"] = "wrong_device"
+                else:
+                    self.hass.config_entries.async_update_entry(
+                        entry, data={**entry.data, **data}
+                    )
+                    await self.hass.config_entries.async_reload(entry.entry_id)
+                    return self.async_abort(reason="reconfigure_successful")
+
+        current = user_input or entry.data
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_URL, default=current.get(CONF_URL, "")): str,
+                vol.Optional(
+                    CONF_VERIFY_SSL,
+                    default=current.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL),
+                ): bool,
+                vol.Optional(
+                    CONF_USERNAME,
+                    default=current.get(CONF_USERNAME, DEFAULT_USERNAME),
+                ): str,
+                vol.Optional(CONF_PASSWORD, default=""): str,
+            }
+        )
+
+        return self.async_show_form(
+            step_id="reconfigure", data_schema=schema, errors=errors
+        )
 
     async def async_step_import(self, user_input):
         """Handle import."""
