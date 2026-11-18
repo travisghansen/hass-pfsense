@@ -30,6 +30,7 @@ from .const import (
     DEFAULT_USERNAME,
     DEFAULT_VERIFY_SSL,
     DOMAIN,
+    SHOULD_RELOAD,
 )
 from .pypfsense import Client
 
@@ -194,16 +195,30 @@ class ConfigFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
             data, system_info, errors = await self._async_validate_input(user_input)
             if not errors:
-                if entry.unique_id and entry.unique_id != slugify(
-                    system_info["netgate_device_id"]
-                ):
-                    errors["base"] = "wrong_device"
-                else:
-                    self.hass.config_entries.async_update_entry(
-                        entry, data={**entry.data, **data}
-                    )
-                    await self.hass.config_entries.async_reload(entry.entry_id)
-                    return self.async_abort(reason="reconfigure_successful")
+                try:
+                    device_id = slugify(system_info["netgate_device_id"])
+                    if entry.unique_id and entry.unique_id != device_id:
+                        errors["base"] = "wrong_device"
+                    else:
+                        # the integration's update listener reloads on change;
+                        # suppress it and schedule a single reload ourselves
+                        # (also covers entries that are not loaded, e.g. retrying
+                        # setup because the old port no longer answers)
+                        entry_data = self.hass.data.get(DOMAIN, {}).get(
+                            entry.entry_id
+                        )
+                        if isinstance(entry_data, dict):
+                            entry_data[SHOULD_RELOAD] = False
+                        changed = self.hass.config_entries.async_update_entry(
+                            entry, data={**entry.data, **data}
+                        )
+                        if not changed and isinstance(entry_data, dict):
+                            entry_data[SHOULD_RELOAD] = True
+                        self.hass.config_entries.async_schedule_reload(entry.entry_id)
+                        return self.async_abort(reason="reconfigure_successful")
+                except Exception:  # noqa: BLE001
+                    _LOGGER.exception("Unexpected error during pfSense reconfigure")
+                    errors["base"] = "unknown"
 
         current = user_input or entry.data
         schema = vol.Schema(
