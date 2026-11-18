@@ -11,6 +11,16 @@
           "name": "Firewall Name",
           "verify_ssl": "Verify SSL certificate"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure the pfSense connection",
+        "description": "Update the URL (including the port) or credentials. Leave the password empty to keep the current one.",
+        "data": {
+          "url": "URL",
+          "username": "Username",
+          "password": "Password",
+          "verify_ssl": "Verify SSL certificate"
+        }
       }
     },
     "error": {
@@ -21,10 +31,12 @@
       "privilege_missing": "User has insufficient privileges (System - HA node sync)",
       "connect_timeout": "Connection timeout",
       "cannot_connect_ssl": "SSL Failure",
-      "url_redirect": "Incorrect URL (redirect)"
+      "url_redirect": "Incorrect URL (redirect)",
+      "wrong_device": "This URL points to a different pfSense device"
     },
     "abort": {
-      "already_configured": "Device is already configured"
+      "already_configured": "Device is already configured",
+      "reconfigure_successful": "Reconfiguration was successful"
     }
   },
   "options": {
