@@ -36,7 +36,7 @@ async def async_setup_entry(
         entities = []
 
         # filter rules
-        if "filter" in state["config"].keys():
+        if "filter" in (state.get("config") or {}).keys():
             rules = dict_get(state, "config.filter.rule")
             if isinstance(rules, list):
                 for rule in rules:
@@ -82,7 +82,7 @@ async def async_setup_entry(
                     entities.append(entity)
 
         # nat port forward rules
-        if "nat" in state["config"].keys():
+        if "nat" in (state.get("config") or {}).keys():
             rules = dict_get(state, "config.nat.rule")
             if isinstance(rules, list):
                 for rule in rules:
@@ -118,7 +118,7 @@ async def async_setup_entry(
                     entities.append(entity)
 
         # nat outbound rules
-        if "nat" in state["config"].keys():
+        if "nat" in (state.get("config") or {}).keys():
             # to actually be applicable mode must by "hybrid" or "advanced"
             rules = dict_get(state, "config.nat.outbound.rule")
             if isinstance(rules, list):
